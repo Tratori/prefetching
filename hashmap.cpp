@@ -174,13 +174,16 @@ void HashMap<K, V>::vectorized_get_coroutine(const std::vector<K>& keys, std::ve
     int num_finished = 0;
     int i = 0;
 
-    for(; i < min(group_size,  static_cast<int>(keys.size())); i++){
+    while (num_finished < keys.size())
+    {
         coroutine_handle<promise>& handle = buff.next_state();
-        handle = get_co(keys[i], results, i);
-    }
-    while (num_finished < keys.size()) {
-        coroutine_handle<promise>& handle = buff.next_state();
-        if(!handle){
+        if (!handle)
+        {
+            if (i < min(group_size, static_cast<int>(keys.size())))
+            {
+                handle = get_co(keys[i], results, i);
+                i++;
+            }
             continue;
         }
 
@@ -191,12 +194,11 @@ void HashMap<K, V>::vectorized_get_coroutine(const std::vector<K>& keys, std::ve
                 ++i;
             } else {
                 handle = nullptr;
+                continue;
             }
         }
 
-        if(handle){
-            handle.resume();
-        }
+        handle.resume();
     }
 }
 
