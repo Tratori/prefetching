@@ -189,6 +189,7 @@ void HashMap<K, V>::vectorized_get_coroutine(const std::vector<K>& keys, std::ve
 
         if (handle.done()) {
             num_finished++;
+            handle.destroy();
             if (i < keys.size()) {
                 handle = get_co(keys[i], results, i);
                 ++i;
