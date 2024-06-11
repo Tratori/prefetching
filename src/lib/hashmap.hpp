@@ -52,12 +52,13 @@ private:
         int stage = 0;
         int i;
     };
+
 public:
     HashMap(size_t capacity = 10);
     ~HashMap();
     void insert(const K& key, const V& value);
     V& get(const K& key);
-    coroutine get_co(const K& key, std::vector<V>& results, const int i);
+    coroutine get_co(const K& key, std::vector<V>& results, int i);
     void vectorized_get(const std::vector<K>& keys, std::vector<V>& results);
     void vectorized_get_gp(const std::vector<K>& keys, std::vector<V>& results);
     void vectorized_get_amac(const std::vector<K>& keys, std::vector<V>& results, int group_size);
