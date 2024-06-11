@@ -2,10 +2,13 @@
 #include <x86intrin.h>
 #include <random>
 #include <iostream>
+#include <nlohmann/json.hpp>
+#include <map>
+#include <fstream>
 
 const uint64_t GIBIBYTE = 1024 * 1024 * 1024;
 const uint64_t MIBIBYTE = 1024 * 1024;
-const uint64_t REPETITIONS = 100;
+const uint64_t REPETITIONS = 1000;
 const uint64_t LINEAR_AHEAD_LOADS = 64;
 const uint64_t PADDING_END = 3;
 const uint64_t DATA_SIZE = GIBIBYTE;
@@ -83,10 +86,20 @@ int main()
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(LINEAR_AHEAD_LOADS, DATA_SIZE - 1 - PADDING_END);
 
+    std::vector<uint64_t> latencies_uncached_prefetch;
+    std::vector<uint64_t> latencies_uncached_load;
+    std::vector<uint64_t> latencies_cached_prefetch;
+    std::vector<uint64_t> latencies_cached_load;
+    latencies_uncached_prefetch.reserve(REPETITIONS);
+    latencies_uncached_load.reserve(REPETITIONS);
+    latencies_cached_prefetch.reserve(REPETITIONS);
+    latencies_cached_load.reserve(REPETITIONS);
+
     for (int i = 0; i < REPETITIONS; i++)
     {
         int random_number = dis(gen);
         uint64_t latency = measure_prefetch_latency_verbose(&data[random_number]); // most likely uncached data
+        latencies_uncached_prefetch.push_back(latency);
     }
 
     std::cout << "-------    Expecting Cache Hits now -------" << std::endl;
@@ -103,6 +116,7 @@ int main()
         }
         wait_cycles(200);
         uint64_t latency = measure_prefetch_latency_verbose(ptr); // most likely cached data
+        latencies_cached_prefetch.push_back(latency);
     }
 
     std::cout << "------- Measuring Load Latencies now -------" << std::endl;
@@ -111,6 +125,7 @@ int main()
     {
         int random_number = dis(gen);
         uint64_t latency = measure_load_latency_verbose(&data[random_number], dummy_sum); // most likely uncached data
+        latencies_uncached_load.push_back(latency);
     }
 
     std::cout << "-------    Expecting Cache Hits now -------" << std::endl;
@@ -126,7 +141,15 @@ int main()
         }
         wait_cycles(200);
         uint64_t latency = measure_load_latency_verbose(ptr, dummy_sum); // most likely cached data
+        latencies_cached_load.push_back(latency);
     }
 
+    nlohmann::json test = {{"latencies_uncached_prefetch", latencies_uncached_prefetch},
+                           {"latencies_uncached_load", latencies_uncached_load},
+                           {"latencies_cached_prefetch", latencies_cached_prefetch},
+                           {"latencies_cached_load", latencies_cached_load}};
+
+    auto results_file = std::ofstream{"prefetch_latencies.json"};
+    results_file << test.dump(-1) << std::flush;
     return 0;
 }
