@@ -70,7 +70,7 @@ void HashMap<K, V>::vectorized_get_gp(const std::vector<K>& keys, std::vector<V>
     std::vector<typename std::list<Node<K, V>>::iterator> nodes;
 
     for (auto& key : keys) {
-        _mm_prefetch(&table[hash(key)], _MM_HINT_NTA);
+        __builtin_prefetch(&table[hash(key)], 0, 3);
     }
 
     int finished = 0;
@@ -80,7 +80,7 @@ void HashMap<K, V>::vectorized_get_gp(const std::vector<K>& keys, std::vector<V>
             if (state == -1) {
                 size_t index = hash(keys[i]);
                 nodes.emplace_back(table[index].begin());
-                _mm_prefetch(&(*nodes.back()), _MM_HINT_NTA);
+                __builtin_prefetch(&(*nodes.back()), 0, 3);
                 state = 0;
             } else if (state == 0) {
                 auto& node = nodes[i];
@@ -92,7 +92,7 @@ void HashMap<K, V>::vectorized_get_gp(const std::vector<K>& keys, std::vector<V>
                 }
                 ++node;
                 if (node != table[hash(keys[i])].end()) {
-                    _mm_prefetch(reinterpret_cast<char*>(&(*node)), _MM_HINT_NTA);
+                    __builtin_prefetch(reinterpret_cast<char *>(&(*node)), 0, 3);
                 } else {
                     throw out_of_range("Key not found.");
                 }
@@ -126,7 +126,7 @@ void HashMap<K, V>::vectorized_get_amac(const std::vector<K>& keys, std::vector<
             state.node = table[hash(state.key)].begin();
             state.end = table[hash(state.key)].end();
             state.stage = 1;
-            _mm_prefetch(&(*state.node), _MM_HINT_NTA);
+            __builtin_prefetch(&(*state.node), 0, 3);
         } else if (state.stage == 1) {
             if (state.key == state.node->key) {
                 state.stage = 0;
@@ -137,7 +137,7 @@ void HashMap<K, V>::vectorized_get_amac(const std::vector<K>& keys, std::vector<
                 if (state.node == state.end) {
                     throw out_of_range("Key not found.");
                 }
-               _mm_prefetch(&(*state.node), _MM_HINT_NTA);
+                __builtin_prefetch(&(*state.node), 0, 3);
             }
         }
     }
@@ -149,14 +149,14 @@ coroutine HashMap<K, V>::get_co(const K& key, std::vector<V>& results, const int
     size_t index = hash(key);
 
     // prefetch bucket (list head)
-    _mm_prefetch(&table[index], _MM_HINT_NTA);
+    __builtin_prefetch(&table[index], 0, 3);
     co_await std::suspend_always{};
 
 
     auto node = table[index].begin();
     auto end = table[index].end();
     while (node != end) {
-        _mm_prefetch(&(*node), _MM_HINT_NTA);
+        __builtin_prefetch(&(*node), 0, 3);
         co_await std::suspend_always{};
         if (node->key == key) {
             results.at(i) = node->value;

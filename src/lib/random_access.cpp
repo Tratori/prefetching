@@ -33,7 +33,7 @@ V &RandomAccess<V>::get(size_t pos)
 template <typename V>
 coroutine RandomAccess<V>::get_co(size_t pos, std::vector<V> &results, int i)
 {
-    _mm_prefetch(data + pos, _MM_HINT_NTA);
+    __builtin_prefetch(data + pos, 0, 3);
     co_await std::suspend_always{};
     results[i] = data[pos];
     co_return;
@@ -66,7 +66,7 @@ void RandomAccess<V>::vectorized_get_gp(const std::vector<size_t> &positions, st
     // function logic. Here this is not required.
     for (auto pos : positions)
     {
-        _mm_prefetch(data + pos, _MM_HINT_NTA);
+        __builtin_prefetch(data + pos, 0, 3);
     }
     for (size_t i = 0; i < positions.size(); ++i)
     {
@@ -84,7 +84,7 @@ void RandomAccess<V>::vectorized_get_amac(const std::vector<size_t> &positions, 
         size_t group_offset = group_iteration * group_size;
         for (size_t i = 0; i < std::min(group_size, positions.size() - group_offset); ++i)
         {
-            _mm_prefetch(data + positions[group_offset + i], _MM_HINT_NTA);
+            __builtin_prefetch(data + positions[group_offset + i], 0, 3);
         }
         for (size_t i = 0; i < std::min(group_size, positions.size() - group_offset); ++i)
         {
