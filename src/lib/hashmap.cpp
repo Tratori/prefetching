@@ -172,7 +172,8 @@ coroutine HashMap<K, V>::get_co_exp(const K &key, std::vector<V> &results, const
 {
     size_t index = hash(key);
 
-    prefetch bucket(list head) if (!is_cached_l1_prefetch(&table[index]))
+    // prefetch bucket(list head)
+    if (!is_cached_l1_prefetch(&table[index]))
     {
         co_await std::suspend_always{};
     }
