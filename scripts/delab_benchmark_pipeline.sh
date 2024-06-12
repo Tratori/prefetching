@@ -7,7 +7,7 @@ cd /prefetching
 mkdir -p cmake-build-release-${1}
 cd cmake-build-release-${1}
 
-cmake --DCMAKE_BUILD_TYPE=Release ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 
 make -j
 
