@@ -38,7 +38,7 @@ for node_conf in ${node_config[@]}; do
     mkdir -p $HOME/prefetching/results/$1/$node_conf
 
     echo "submitting task for config ${node_conf}"
-    srun -A rabl --partition ${partitions[$node_conf]} -w $node -c 16 --mem-per-cpu 1024 \
+    salloc -A rabl --partition ${partitions[$node_conf]} -w $node -c 16 --mem-per-cpu 1024 \
       --time=6:00:00 --container-image=${HOME}/ubuntu22_04.sqsh \
       --container-mounts=${HOME}/prefetching:/prefetching  \
       /prefetching/delab_benchmark_pipeline.sh ${node_conf} $1  &
