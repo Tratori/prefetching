@@ -41,6 +41,7 @@ void measure_vectorized_operation(HashMap<uint32_t, uint32_t> &openMap, Function
 
     double throughput = TOTAL_QUERIES / total_time;
 
+    std::cout << std::endl;
     std::cout << op_name << std::endl;
     std::cout << "Total time taken: " << total_time << " seconds" << std::endl;
     std::cout << "Throughput: " << throughput << " queries/second" << std::endl;

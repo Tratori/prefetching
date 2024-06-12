@@ -36,7 +36,7 @@ void measure_vectorized_operation(RandomAccess<uint8_t> &random_access, Function
 
         for (int j = 0; j < invoke_vector_size; j++)
         {
-            if (!(results.at(j) == uint8_t{requests.at(j)}))
+            if (!(results.at(j) == (requests.at(j) % 256)))
             {
                 perror("random read returned wrong value.");
                 exit(-1);
@@ -46,6 +46,7 @@ void measure_vectorized_operation(RandomAccess<uint8_t> &random_access, Function
 
     double throughput = TOTAL_QUERIES / total_time;
 
+    std::cout << std::endl;
     std::cout << op_name << std::endl;
     std::cout << "Total time taken: " << total_time << " seconds" << std::endl;
     std::cout << "Throughput: " << throughput << " queries/second" << std::endl;
