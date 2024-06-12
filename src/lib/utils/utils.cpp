@@ -1,8 +1,11 @@
 #include <stdint.h>
 #include <x86intrin.h>
 #include <vector>
+#include <iostream>
 
 const uint64_t l1_prefetch_latency = 44;
+
+static uint64_t sampling_counter = 0;
 
 bool is_cached_l1_prefetch(const void *ptr)
 {
@@ -17,6 +20,12 @@ bool is_cached_l1_prefetch(const void *ptr)
     asm volatile("" ::: "memory");
     _mm_lfence();
     end = __rdtsc();
+
+    // sampling_counter++;
+    // if ((sampling_counter & 0xFFFF) == 0xFFFF)
+    //{
+    //     std::cout << end - start << "," << std::endl;
+    // }
 
     return (end - start) <= l1_prefetch_latency;
 }

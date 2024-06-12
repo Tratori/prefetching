@@ -161,7 +161,7 @@ void RandomAccess<V>::vectorized_get_coroutine_exp(const std::vector<size_t> &po
             handle.destroy();
             if (i < positions.size())
             {
-                handle = get_co(positions[i], results, i);
+                handle = get_co_exp(positions[i], results, i);
                 ++i;
             }
             else
