@@ -41,5 +41,5 @@ for node_conf in ${node_config[@]}; do
     salloc -A rabl --partition ${partitions[$node_conf]} -w $node -c 16 --mem-per-cpu 1024 \
       --time=6:00:00 --container-image=${HOME}/ubuntu22_04.sqsh \
       --container-mounts=${HOME}/prefetching:/prefetching  \
-      bash /prefetching/scripts/delab_benchmark_pipeline.sh ${node_conf} $1  &
+      bash /forward.sh /prefetching/scripts/delab_benchmark_pipeline.sh ${node_conf} $1  &
 done
