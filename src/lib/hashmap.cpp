@@ -1,4 +1,5 @@
 #include "hashmap.hpp"
+#include "utils.cpp"
 
 template<typename K, typename V>
 size_t HashMap<K, V>::hash(const K& key) {
@@ -166,6 +167,33 @@ coroutine HashMap<K, V>::get_co(const K& key, std::vector<V>& results, const int
     throw out_of_range("Key not found");
 }
 
+template <typename K, typename V>
+coroutine HashMap<K, V>::get_co_exp(const K &key, std::vector<V> &results, const int i)
+{
+    size_t index = hash(key);
+
+    prefetch bucket(list head) if (!is_cached_l1_prefetch(&table[index]))
+    {
+        co_await std::suspend_always{};
+    }
+
+    auto node = table[index].begin();
+    auto end = table[index].end();
+    while (node != end)
+    {
+        if (!is_cached_l1_prefetch(&(*node)))
+        {
+            co_await std::suspend_always{};
+        }
+        if (node->key == key)
+        {
+            results.at(i) = node->value;
+            co_return;
+        }
+        ++node;
+    }
+    throw out_of_range("Key not found");
+}
 
 template<typename K, typename V>
 void HashMap<K, V>::vectorized_get_coroutine(const std::vector<K>& keys, std::vector<V>& results, int group_size) {
@@ -194,6 +222,47 @@ void HashMap<K, V>::vectorized_get_coroutine(const std::vector<K>& keys, std::ve
                 handle = get_co(keys[i], results, i);
                 ++i;
             } else {
+                handle = nullptr;
+                continue;
+            }
+        }
+
+        handle.resume();
+    }
+}
+
+template <typename K, typename V>
+void HashMap<K, V>::vectorized_get_coroutine_exp(const std::vector<K> &keys, std::vector<V> &results, int group_size)
+{
+    CircularBuffer<coroutine_handle<promise>> buff(min(group_size, static_cast<int>(keys.size())));
+
+    int num_finished = 0;
+    int i = 0;
+
+    while (num_finished < keys.size())
+    {
+        coroutine_handle<promise> &handle = buff.next_state();
+        if (!handle)
+        {
+            if (i < min(group_size, static_cast<int>(keys.size())))
+            {
+                handle = get_co(keys[i], results, i);
+                i++;
+            }
+            continue;
+        }
+
+        if (handle.done())
+        {
+            num_finished++;
+            handle.destroy();
+            if (i < keys.size())
+            {
+                handle = get_co(keys[i], results, i);
+                ++i;
+            }
+            else
+            {
                 handle = nullptr;
                 continue;
             }

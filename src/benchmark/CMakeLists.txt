@@ -1,5 +1,6 @@
 include_directories(
     ${PROJECT_SOURCE_DIR}/src/lib
+    utils
 )
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmark)
 

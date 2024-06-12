@@ -17,25 +17,6 @@ struct Node {
     Node(K k, V v) : key(k), value(v) {}
 };
 
-template<typename T>
-class CircularBuffer {
-private:
-    std::vector<T> buffer;
-    size_t capacity;
-    size_t next_index;
-
-public:
-    CircularBuffer(size_t capacity) : capacity(capacity), next_index(0) {
-        buffer.resize(capacity);
-    }
-
-    T& next_state() {
-        T& state = buffer[next_index];
-        next_index = (next_index + 1) % capacity;
-        return state;
-    }
-};
-
 template<typename K, typename V>
 class HashMap {
 private:
@@ -59,10 +40,12 @@ public:
     void insert(const K& key, const V& value);
     V& get(const K& key);
     coroutine get_co(const K& key, std::vector<V>& results, int i);
+    coroutine get_co_exp(const K &key, std::vector<V> &results, int i);
     void vectorized_get(const std::vector<K>& keys, std::vector<V>& results);
     void vectorized_get_gp(const std::vector<K>& keys, std::vector<V>& results);
     void vectorized_get_amac(const std::vector<K>& keys, std::vector<V>& results, int group_size);
     void vectorized_get_coroutine(const std::vector<K>& keys, std::vector<V>& results, int group_size);
+    void vectorized_get_coroutine_exp(const std::vector<K> &keys, std::vector<V> &results, int group_size);
     void remove(const K& key);
     bool contains(const K& key);
     size_t getSize() const;
