@@ -7,12 +7,18 @@
 #  - <benchmark_name> must be unique.
 
 
-node_config=("cx17" "ca06" "cp01")
+node_config=("cx15" "ca06" "cp01")
 declare -A nodenames
 declare -A partitions
 
 partitions["cx17"]="magic"
 nodenames["cx17"]="cx17"
+
+partitions["cx16"]="magic"
+nodenames["cx16"]="cx16"
+
+partitions["cx15"]="magic"
+nodenames["cx15"]="cx15"
 
 partitions["ca06"]="magic"
 nodenames["ca06"]="ca06"
@@ -38,8 +44,8 @@ for node_conf in ${node_config[@]}; do
     mkdir -p $HOME/prefetching/results/$1/$node_conf
 
     echo "submitting task for config ${node_conf}"
-    salloc -A rabl --partition ${partitions[$node_conf]} -w $node -c 16 --mem-per-cpu 1024 \
+    srun -A rabl --partition ${partitions[$node_conf]} -w $node -c 16 --mem-per-cpu 1024 \
       --time=6:00:00 --container-image=${HOME}/ubuntu22_04.sqsh \
       --container-mounts=${HOME}/prefetching:/prefetching  \
-      bash /forward.sh /prefetching/scripts/delab_benchmark_pipeline.sh ${node_conf} $1  &
+      /prefetching/scripts/delab_benchmark_pipeline.sh ${node_conf} $1  &
 done
