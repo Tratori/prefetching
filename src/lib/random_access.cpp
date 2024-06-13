@@ -149,7 +149,7 @@ void RandomAccess<V>::vectorized_get_coroutine_exp(const std::vector<size_t> &po
         {
             if (i < std::min(group_size, static_cast<size_t>(positions.size())))
             {
-                handle = get_co(positions[i], results, i);
+                handle = get_co_exp(positions[i], results, i);
                 i++;
             }
             continue;

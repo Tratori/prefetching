@@ -7,7 +7,7 @@ const uint64_t l1_prefetch_latency = 44;
 
 static uint64_t sampling_counter = 0;
 
-bool is_cached_l1_prefetch(const void *ptr)
+inline bool is_cached_l1_prefetch(const void *ptr)
 {
     uint64_t start, end;
 

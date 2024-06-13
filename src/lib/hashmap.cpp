@@ -247,7 +247,7 @@ void HashMap<K, V>::vectorized_get_coroutine_exp(const std::vector<K> &keys, std
         {
             if (i < min(group_size, static_cast<int>(keys.size())))
             {
-                handle = get_co(keys[i], results, i);
+                handle = get_co_exp(keys[i], results, i);
                 i++;
             }
             continue;
