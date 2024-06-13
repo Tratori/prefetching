@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Execute
 # ./delab_benchmark_pipeline.sh <node_name> <benchmark_name>
 

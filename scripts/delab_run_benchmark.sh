@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Execute
 # ./delab_run_benchmark.sh <benchmark_name>
 # prerequisites:
