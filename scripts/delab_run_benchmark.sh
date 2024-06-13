@@ -40,7 +40,7 @@ git pull
 
 
 mkdir -p $HOME/prefetching/results/${2}
-git rev-parse HEAD > $HOME/prefetching/results/${2}
+git rev-parse HEAD > $HOME/prefetching/results/${2}/git_sha
 
 for node_conf in ${node_config[@]}; do
     node=${nodenames[$node_conf]}
