@@ -32,24 +32,30 @@ inline bool is_in_tlb_and_prefetch(const void *ptr)
     return (end - start) <= l1_prefetch_latency;
 }
 
-inline bool is_in_tlb_prefetch_profile(const void *ptr, size_t &step, PrefetchProfiler &profiler)
+inline bool is_in_tlb_prefetch_profile(const void *ptr, size_t &step, PrefetchProfiler &profiler, bool &assume_cached)
 {
     uint64_t start, end;
+    if (step == 1)
+    {
+        start = __rdtsc();
+        _mm_lfence();
+        asm volatile("" ::: "memory");
 
-    start = __rdtsc();
-    _mm_lfence();
-    asm volatile("" ::: "memory");
+        __builtin_prefetch(ptr, 0, 3); // Prefetch to L1 cache
 
-    __builtin_prefetch(ptr, 0, 3); // Prefetch to L1 cache
+        asm volatile("" ::: "memory");
+        _mm_lfence();
+        end = __rdtsc();
 
-    asm volatile("" ::: "memory");
-    _mm_lfence();
-    end = __rdtsc();
+        bool is_hit = (end - start) <= l1_prefetch_latency;
+        profiler.note_cache_hit_or_miss(is_hit, step);
+        profiler.sampled_latency_store(end - start);
 
-    bool is_hit = (end - start) <= l1_prefetch_latency;
-    profiler.note_cache_hit_or_miss(is_hit, step++);
-    profiler.sampled_latency_store(end - start);
-    return is_hit;
+        assume_cached = is_hit;
+    }
+
+    step++;
+    return assume_cached;
 }
 
 template <typename T>
