@@ -42,7 +42,7 @@ coroutine RandomAccess<V>::get_co(size_t pos, std::vector<V> &results, int i)
 template <typename V>
 coroutine RandomAccess<V>::get_co_exp(size_t pos, std::vector<V> &results, int i)
 {
-    if (is_cached_l1_prefetch(data + pos))
+    if (is_in_tlb_and_prefetch(data + pos))
     {
         co_await std::suspend_always{};
     }

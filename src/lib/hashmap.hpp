@@ -7,6 +7,7 @@
 #include <assert.h>
 
 #include "coroutine.hpp"
+#include "utils/profiler.cpp"
 
 using namespace std;
 
@@ -35,17 +36,21 @@ private:
     };
 
 public:
-    HashMap(size_t capacity = 10);
+    PrefetchProfiler &profiler;
+
+    HashMap(size_t capacity, PrefetchProfiler &profiler);
     ~HashMap();
     void insert(const K& key, const V& value);
     V& get(const K& key);
     coroutine get_co(const K& key, std::vector<V>& results, int i);
     coroutine get_co_exp(const K &key, std::vector<V> &results, int i);
+    coroutine profile_get_co_exp(const K &key, std::vector<V> &results, int i);
     void vectorized_get(const std::vector<K>& keys, std::vector<V>& results);
     void vectorized_get_gp(const std::vector<K>& keys, std::vector<V>& results);
     void vectorized_get_amac(const std::vector<K>& keys, std::vector<V>& results, int group_size);
     void vectorized_get_coroutine(const std::vector<K>& keys, std::vector<V>& results, int group_size);
     void vectorized_get_coroutine_exp(const std::vector<K> &keys, std::vector<V> &results, int group_size);
+    void profile_vectorized_get_coroutine_exp(const std::vector<K> &keys, std::vector<V> &results, int group_size);
     void remove(const K& key);
     bool contains(const K& key);
     size_t getSize() const;

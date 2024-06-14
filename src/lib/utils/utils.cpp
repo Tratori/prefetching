@@ -3,11 +3,13 @@
 #include <vector>
 #include <iostream>
 
+#include "profiler.cpp"
+
 const uint64_t l1_prefetch_latency = 44;
 
 static uint64_t sampling_counter = 0;
 
-inline bool is_cached_l1_prefetch(const void *ptr)
+inline bool is_in_tlb_and_prefetch(const void *ptr)
 {
     uint64_t start, end;
 
@@ -28,6 +30,26 @@ inline bool is_cached_l1_prefetch(const void *ptr)
     // }
 
     return (end - start) <= l1_prefetch_latency;
+}
+
+inline bool is_in_tlb_prefetch_profile(const void *ptr, size_t &step, PrefetchProfiler &profiler)
+{
+    uint64_t start, end;
+
+    start = __rdtsc();
+    _mm_lfence();
+    asm volatile("" ::: "memory");
+
+    __builtin_prefetch(ptr, 0, 3); // Prefetch to L1 cache
+
+    asm volatile("" ::: "memory");
+    _mm_lfence();
+    end = __rdtsc();
+
+    bool is_hit = (end - start) <= l1_prefetch_latency;
+    profiler.note_cache_hit_or_miss(is_hit, step++);
+    profiler.sampled_latency_store(end - start);
+    return is_hit;
 }
 
 template <typename T>

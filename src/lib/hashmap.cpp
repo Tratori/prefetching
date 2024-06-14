@@ -6,8 +6,9 @@ size_t HashMap<K, V>::hash(const K& key) {
     return std::hash<K>{}(key) % capacity;
 }
 
-template<typename K, typename V>
-HashMap<K, V>::HashMap(size_t capacity) : capacity(capacity), size(0) {
+template <typename K, typename V>
+HashMap<K, V>::HashMap(size_t capacity, PrefetchProfiler &profiler) : capacity(capacity), size(0), profiler(profiler)
+{
     table.resize(capacity);
 }
 
@@ -173,7 +174,7 @@ coroutine HashMap<K, V>::get_co_exp(const K &key, std::vector<V> &results, const
     size_t index = hash(key);
 
     // prefetch bucket(list head)
-    if (!is_cached_l1_prefetch(&table[index]))
+    if (!is_in_tlb_and_prefetch(&table[index]))
     {
         co_await std::suspend_always{};
     }
@@ -182,7 +183,36 @@ coroutine HashMap<K, V>::get_co_exp(const K &key, std::vector<V> &results, const
     auto end = table[index].end();
     while (node != end)
     {
-        if (!is_cached_l1_prefetch(&(*node)))
+        if (!is_in_tlb_and_prefetch(&(*node)))
+        {
+            co_await std::suspend_always{};
+        }
+        if (node->key == key)
+        {
+            results.at(i) = node->value;
+            co_return;
+        }
+        ++node;
+    }
+    throw out_of_range("Key not found");
+}
+
+template <typename K, typename V>
+coroutine HashMap<K, V>::profile_get_co_exp(const K &key, std::vector<V> &results, const int i)
+{
+    size_t prefetch_count = 0;
+    size_t index = hash(key);
+
+    if (!is_in_tlb_prefetch_profile(&table[index], prefetch_count, profiler))
+    {
+        co_await std::suspend_always{};
+    }
+
+    auto node = table[index].begin();
+    auto end = table[index].end();
+    while (node != end)
+    {
+        if (!is_in_tlb_prefetch_profile(&(*node), prefetch_count, profiler))
         {
             co_await std::suspend_always{};
         }
@@ -223,6 +253,47 @@ void HashMap<K, V>::vectorized_get_coroutine(const std::vector<K>& keys, std::ve
                 handle = get_co(keys[i], results, i);
                 ++i;
             } else {
+                handle = nullptr;
+                continue;
+            }
+        }
+
+        handle.resume();
+    }
+}
+
+template <typename K, typename V>
+void HashMap<K, V>::profile_vectorized_get_coroutine_exp(const std::vector<K> &keys, std::vector<V> &results, int group_size)
+{
+    CircularBuffer<coroutine_handle<promise>> buff(min(group_size, static_cast<int>(keys.size())));
+
+    int num_finished = 0;
+    int i = 0;
+
+    while (num_finished < keys.size())
+    {
+        coroutine_handle<promise> &handle = buff.next_state();
+        if (!handle)
+        {
+            if (i < min(group_size, static_cast<int>(keys.size())))
+            {
+                handle = profile_get_co_exp(keys[i], results, i);
+                i++;
+            }
+            continue;
+        }
+
+        if (handle.done())
+        {
+            num_finished++;
+            handle.destroy();
+            if (i < keys.size())
+            {
+                handle = profile_get_co_exp(keys[i], results, i);
+                ++i;
+            }
+            else
+            {
                 handle = nullptr;
                 continue;
             }

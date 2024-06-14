@@ -4,6 +4,9 @@
 #include <functional>
 #include <chrono>
 #include <assert.h>
+#include <nlohmann/json.hpp>
+#include <fstream>
+
 #include "zipfian_int_distribution.cpp"
 
 const int NUM_KEYS = 10'000'000;
@@ -12,8 +15,9 @@ const int GROUP_SIZE = 32;
 const int AMAC_REQUESTS_SIZE = 1024;
 
 template <typename Function>
-void measure_vectorized_operation(HashMap<uint32_t, uint32_t> &openMap, Function func, const std::string &op_name, int invoke_vector_size, auto gen, auto dis)
+void measure_vectorized_operation(HashMap<uint32_t, uint32_t> &openMap, Function func, const std::string &op_name, int invoke_vector_size, auto gen, auto dis, nlohmann::json &metrics)
 {
+    openMap.profiler.reset();
     auto start = std::chrono::high_resolution_clock::now();
     auto end = std::chrono::high_resolution_clock::now();
     double total_time = 0;
@@ -45,36 +49,47 @@ void measure_vectorized_operation(HashMap<uint32_t, uint32_t> &openMap, Function
     std::cout << op_name << std::endl;
     std::cout << "Total time taken: " << total_time << " seconds" << std::endl;
     std::cout << "Throughput: " << throughput << " queries/second" << std::endl;
+    metrics[op_name]["time"] = total_time;
+    metrics[op_name]["throughput"] = throughput;
+    metrics[op_name]["profiler"] = openMap.profiler.return_metrics();
 }
 
-void execute_benchmark(HashMap<uint32_t, uint32_t> &openMap, int GROUP_SIZE, int AMAC_REQUEST_SIZE, auto gen, auto dis)
+nlohmann::json execute_benchmark(HashMap<uint32_t, uint32_t> &openMap, int GROUP_SIZE, int AMAC_REQUEST_SIZE, auto gen, auto dis)
 {
+    nlohmann::json results;
     measure_vectorized_operation(
         openMap, [&](auto &a, auto &b, auto &c)
         { openMap.vectorized_get_amac(a, b, c); },
-        "Vectorized_get_amac()", AMAC_REQUESTS_SIZE, gen, dis);
+        "Vectorized_get_amac()", AMAC_REQUESTS_SIZE, gen, dis, results);
     measure_vectorized_operation(
         openMap, [&](auto &a, auto &b, auto &c)
         { openMap.vectorized_get_coroutine(a, b, c); },
-        "Vectorized_get_co()", AMAC_REQUESTS_SIZE, gen, dis);
+        "Vectorized_get_co()", AMAC_REQUESTS_SIZE, gen, dis, results);
     measure_vectorized_operation(
         openMap, [&](auto &a, auto &b, auto &c)
         { openMap.vectorized_get_gp(a, b); },
-        "Vectorized_get_gp()", GROUP_SIZE, gen, dis);
+        "Vectorized_get_gp()", GROUP_SIZE, gen, dis, results);
     measure_vectorized_operation(
         openMap, [&](auto &a, auto &b, auto &c)
         { openMap.vectorized_get(a, b); },
-        "Vectorized_get()", GROUP_SIZE, gen, dis);
+        "Vectorized_get()", GROUP_SIZE, gen, dis, results);
     measure_vectorized_operation(
         openMap, [&](auto &a, auto &b, auto &c)
         { openMap.vectorized_get_coroutine_exp(a, b, c); },
-        "vectorized_get_coroutine_exp()", AMAC_REQUESTS_SIZE, gen, dis);
+        "vectorized_get_coroutine_exp()", AMAC_REQUESTS_SIZE, gen, dis, results);
+    measure_vectorized_operation(
+        openMap, [&](auto &a, auto &b, auto &c)
+        { openMap.profile_vectorized_get_coroutine_exp(a, b, c); },
+        "profile_vectorized_get_coroutine_exp()", AMAC_REQUESTS_SIZE, gen, dis, results);
+    return results;
 };
 
 int main()
 {
-    HashMap<uint32_t, uint32_t> openMap{500'000};
+    PrefetchProfiler profiler{30};
+    HashMap<uint32_t, uint32_t> openMap{500'000, profiler};
 
+    nlohmann::json results;
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> uniform_dis(0, NUM_KEYS - 1);
@@ -88,9 +103,11 @@ int main()
     }
 
     std::cout << "----- Measuring Uniform Accesses -----" << std::endl;
-    execute_benchmark(openMap, GROUP_SIZE, AMAC_REQUESTS_SIZE, gen, uniform_dis);
+    results["uniform"] = execute_benchmark(openMap, GROUP_SIZE, AMAC_REQUESTS_SIZE, gen, uniform_dis);
     std::cout << "----- Measuring Zipfian Accesses -----" << std::endl;
-    execute_benchmark(openMap, GROUP_SIZE, AMAC_REQUESTS_SIZE, gen, zipfian_distribution);
+    results["zipfian"] = execute_benchmark(openMap, GROUP_SIZE, AMAC_REQUESTS_SIZE, gen, zipfian_distribution);
 
+    auto results_file = std::ofstream{"hashmap_benchmark.json"};
+    results_file << results.dump(-1) << std::flush;
     return 0;
 }
