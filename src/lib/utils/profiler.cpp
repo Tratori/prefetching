@@ -90,7 +90,7 @@ public:
 
     void reset()
     {
-        for (auto spec : classifications)
+        for (auto &spec : classifications)
         {
             spec.reset();
         }
