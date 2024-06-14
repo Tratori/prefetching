@@ -94,5 +94,7 @@ public:
         {
             spec.reset();
         }
+        latencies.resize(latencies.size(), 0);
+        latency_insert = 0;
     }
 };
