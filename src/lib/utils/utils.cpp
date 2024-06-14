@@ -53,6 +53,10 @@ inline bool is_in_tlb_prefetch_profile(const void *ptr, size_t &step, PrefetchPr
 
         assume_cached = is_hit;
     }
+    else
+    {
+        __builtin_prefetch(ptr, 0, 3); // Prefetch to L1 cache
+    }
 
     step++;
     return assume_cached;
