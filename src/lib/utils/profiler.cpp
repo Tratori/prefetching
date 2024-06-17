@@ -21,23 +21,27 @@ class PrefetchProfiler
 {
 public:
     std::vector<StepSpecifier> classifications;
-    std::vector<uint16_t> latencies;
-    uint64_t latency_sampling_mask = 1023; // store every sampling_mask-th latency
-    uint64_t sampling_counter;
-    size_t latency_insert;
+    std::vector<std::vector<uint16_t>> latencies;
+    uint64_t sampling_mask = 1023; // store every sampling_mask-th latency
 
-    PrefetchProfiler(int maxPrefetches = 30, int num_latencies = 1000)
+    uint64_t sampling_counter; // either manually handle, or use sampled_<x> functions
+    size_t sample_id;
+    size_t step_id;
+
+    PrefetchProfiler(int maxPrefetches = 30, int samples = 100)
     {
         classifications.resize(maxPrefetches, {});
-        latencies.resize(num_latencies, 0);
+        latencies.resize(samples, std::vector<uint16_t>(maxPrefetches, 0));
+        sample_id = 0;
+        step_id = 0;
     }
 
     void sampled_latency_store(uint16_t latency)
     {
-        if (sampling_counter & latency_sampling_mask)
+        if (sampling_counter & sampling_mask)
         {
-            latencies[latency_insert] = latency;
-            latency_insert = (latency_insert + 1) % uint64_t{latencies.size()};
+            latencies.at(sample_id).at(step_id) = latency;
+            sample_id = (sample_id + 1) % uint64_t{latencies.size()};
         }
         sampling_counter++;
     }
@@ -94,7 +98,8 @@ public:
         {
             spec.reset();
         }
-        latencies.resize(latencies.size(), 0);
-        latency_insert = 0;
+        latencies.resize(latencies.size(), std::vector<uint16_t>(classifications.size(), 0));
+        sample_id = 0;
+        step_id = 0;
     }
 };

@@ -2,11 +2,13 @@
 #include <x86intrin.h>
 #include <vector>
 #include <iostream>
+#include <coroutine>
 
 #include "profiler.cpp"
+#include "coroutine.hpp"
 
 const uint64_t l1_prefetch_latency = 44;
-
+const uint64_t sampling_freq = 1'000;
 static uint64_t sampling_counter = 0;
 
 inline bool is_in_tlb_and_prefetch(const void *ptr)
@@ -32,33 +34,34 @@ inline bool is_in_tlb_and_prefetch(const void *ptr)
     return (end - start) <= l1_prefetch_latency;
 }
 
-inline bool is_in_tlb_prefetch_profile(const void *ptr, size_t &step, PrefetchProfiler &profiler, bool &assume_cached)
+inline int init_profiler(PrefetchProfiler &profiler, uint64_t &last_tsc)
 {
-    uint64_t start, end;
-    if (step == 1)
+    profiler.sampling_counter++;
+    if (profiler.sampling_counter & profiler.sampling_mask == profiler.sampling_mask)
     {
-        start = __rdtsc();
-        _mm_lfence();
-        asm volatile("" ::: "memory");
+        last_tsc = __rdtsc();
+        return profiler.sample_id++ % profiler.latencies.size();
+    }
+    return -1;
+}
 
-        __builtin_prefetch(ptr, 0, 3); // Prefetch to L1 cache
-
-        asm volatile("" ::: "memory");
-        _mm_lfence();
-        end = __rdtsc();
-
-        bool is_hit = (end - start) <= l1_prefetch_latency;
-        profiler.note_cache_hit_or_miss(is_hit, step);
-        profiler.sampled_latency_store(end - start);
-
-        assume_cached = is_hit;
+inline bool is_in_tlb_prefetch_profile(const void *ptr, size_t &step, int sample_id, uint64_t &last_tsc, PrefetchProfiler &profiler, bool &assume_cached)
+{
+    if (sample_id != -1)
+    {
+        uint64_t now = __rdtsc();
+        profiler.latencies.at(sample_id).at(step) = now - last_tsc;
+        last_tsc = now;
+        step++;
+        return true;
     }
     else
     {
+        step++;
+
         __builtin_prefetch(ptr, 0, 3); // Prefetch to L1 cache
     }
 
-    step++;
     return assume_cached;
 }
 

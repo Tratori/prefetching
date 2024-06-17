@@ -1,7 +1,6 @@
 #pragma once
 #include <coroutine>
 
-
 struct promise;
 
 struct coroutine : std::coroutine_handle<promise>
@@ -16,5 +15,4 @@ struct promise
     std::suspend_always final_suspend() noexcept { return {}; }
     void return_void() {}
     void unhandled_exception() {}
-
 };

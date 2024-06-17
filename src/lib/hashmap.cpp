@@ -200,11 +200,13 @@ coroutine HashMap<K, V>::get_co_exp(const K &key, std::vector<V> &results, const
 template <typename K, typename V>
 coroutine HashMap<K, V>::profile_get_co_exp(const K &key, std::vector<V> &results, const int i)
 {
+    uint64_t last_tsc;
+    int sample_id = init_profiler(profiler, last_tsc);
     size_t prefetch_count = 0;
-    bool assume_cached = true;
+    bool assume_cached = false;
     size_t index = hash(key);
 
-    if (!is_in_tlb_prefetch_profile(&table[index], prefetch_count, profiler, assume_cached))
+    if (!is_in_tlb_prefetch_profile(&table[index], prefetch_count, sample_id, last_tsc, profiler, assume_cached))
     {
         co_await std::suspend_always{};
     }
@@ -213,7 +215,7 @@ coroutine HashMap<K, V>::profile_get_co_exp(const K &key, std::vector<V> &result
     auto end = table[index].end();
     while (node != end)
     {
-        if (!is_in_tlb_prefetch_profile(&(*node), prefetch_count, profiler, assume_cached))
+        if (!is_in_tlb_prefetch_profile(&(*node), prefetch_count, sample_id, last_tsc, profiler, assume_cached))
         {
             co_await std::suspend_always{};
         }

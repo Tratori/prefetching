@@ -6,7 +6,7 @@
 #include <iterator>
 #include <assert.h>
 
-#include "coroutine.hpp"
+#include "utils/coroutine.hpp"
 #include "utils/profiler.cpp"
 
 using namespace std;
