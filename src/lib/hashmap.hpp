@@ -8,6 +8,7 @@
 
 #include "coroutine.hpp"
 #include "utils/profiler.cpp"
+#include "utils/numa_memory_resource.hpp"
 
 using namespace std;
 
@@ -21,9 +22,10 @@ struct Node {
 template<typename K, typename V>
 class HashMap {
 private:
-    vector<list<Node<K, V>>> table;
+    std::pmr::vector<std::pmr::list<Node<K, V>>> table;
     size_t size;
     size_t capacity;
+    std::pmr::memory_resource &memory_resource;
 
     size_t hash(const K& key);
 
@@ -38,7 +40,7 @@ private:
 public:
     PrefetchProfiler &profiler;
 
-    HashMap(size_t capacity, PrefetchProfiler &profiler);
+    HashMap(size_t capacity, PrefetchProfiler &profiler, std::pmr::memory_resource &memory_resource);
     ~HashMap();
     void insert(const K& key, const V& value);
     V& get(const K& key);

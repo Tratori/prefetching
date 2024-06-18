@@ -16,5 +16,13 @@ if(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     )
 endif()
 
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH}) # To allow CMake to locate our Find*.cmake files
+
+
+set(DEFAULT_LIB_DIRS $ENV{HOME}/local /opt/local /usr/local /usr)
+find_package(Boost REQUIRED)
+find_package(Numa REQUIRED)
+
+
 add_subdirectory(third_party)
 add_subdirectory(src)

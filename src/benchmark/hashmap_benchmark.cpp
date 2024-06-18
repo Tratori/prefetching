@@ -8,6 +8,7 @@
 #include <fstream>
 
 #include "zipfian_int_distribution.cpp"
+#include "utils/numa_memory_resource.hpp"
 
 const int NUM_KEYS = 10'000'000;
 const int TOTAL_QUERIES = 25'000'000;
@@ -87,7 +88,8 @@ nlohmann::json execute_benchmark(HashMap<uint32_t, uint32_t> &openMap, int GROUP
 int main()
 {
     PrefetchProfiler profiler{30};
-    HashMap<uint32_t, uint32_t> openMap{500'000, profiler};
+    NumaMemoryResource mem_res{};
+    HashMap<uint32_t, uint32_t> openMap{500'000, profiler, mem_res};
 
     nlohmann::json results;
     std::random_device rd;
