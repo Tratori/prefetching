@@ -84,13 +84,13 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
                                 bool *commit, unsigned arena_index)
 {
     // map return addresses aligned to page size
-    void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
     if (addr == nullptr)
     {
         throw std::runtime_error("Failed to mmap pages.");
     }
 
-    auto num_pages = calculate_allocated_pages(size);
+    unsigned long num_pages = calculate_allocated_pages(size);
     std::vector<void *> page_pointers(num_pages);
     std::vector<int> nodes(num_pages);
     std::vector<int> status(num_pages);
