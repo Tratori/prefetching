@@ -7,9 +7,8 @@ size_t HashMap<K, V>::hash(const K& key) {
 }
 
 template <typename K, typename V>
-HashMap<K, V>::HashMap(size_t capacity, PrefetchProfiler &profiler, std::pmr::memory_resource &memory_resource) : capacity(capacity), size(0), profiler(profiler), memory_resource(memory_resource)
+HashMap<K, V>::HashMap(size_t capacity, PrefetchProfiler &profiler, std::pmr::memory_resource &memory_resource) : capacity(capacity), size(0), profiler(profiler), memory_resource(memory_resource), table(std::pmr::vector<std::pmr::list<Node<K, V>>>(capacity, std::pmr::list<Node<K, V>>(&memory_resource), &memory_resource))
 {
-    table.resize(capacity, std::pmr::list<Node<K, V>>(&memory_resource));
 }
 
 template<typename K, typename V>

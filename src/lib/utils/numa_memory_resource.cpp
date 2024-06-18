@@ -4,13 +4,12 @@
 #include <numaif.h>
 #include <vector>
 
+#include <sstream>
+
 #include <boost/container/pmr/memory_resource.hpp>
 #include <jemalloc/jemalloc.h>
 
 #include "numa_memory_resource.hpp"
-
-static extent_hooks_t _hooks{
-    .alloc = alloc};
 
 inline std::size_t get_page_size()
 {
@@ -30,14 +29,31 @@ NumaMemoryResource::NumaMemoryResource()
     auto size = sizeof(arena_id);
     if (mallctl("arenas.create", static_cast<void *>(&arena_id), &size, nullptr, 0) != 0)
     {
-        perror("Could not create arena");
+        throw std::runtime_error("Could not create arena");
     }
 
-    char command[64];
-    snprintf(command, sizeof(command), "arena.%u.extent_hooks", arena_id);
-    if (mallctl(command, nullptr, nullptr, static_cast<void *>(&_hooks), sizeof(extent_hooks_t *)) != 0)
+    std::ostringstream hooks_key;
+    hooks_key << "arena." << arena_id << ".extent_hooks";
+    extent_hooks_t *hooks;
+    size = sizeof(hooks);
+    // Read the existing hooks
+    if (auto ret = mallctl(hooks_key.str().c_str(), &hooks, &size, nullptr, 0))
     {
-        perror("mallctl failed");
+        throw std::runtime_error("Unable to get the hooks");
+    }
+
+    // Set the custom hook
+    extentHooks_ = *hooks;
+    extentHooks_.alloc = &alloc;
+    extent_hooks_t *new_hooks = &extentHooks_;
+    if (auto ret = mallctl(
+            hooks_key.str().c_str(),
+            nullptr,
+            nullptr,
+            &new_hooks,
+            sizeof(new_hooks)))
+    {
+        throw std::runtime_error("Unable to set the hooks");
     }
 
     _allocation_flags = MALLOCX_ARENA(arena_id) | MALLOCX_TCACHE_NONE;
@@ -64,37 +80,34 @@ NodeID NumaMemoryResource::node_id(void *p)
     return 0;
 }
 
-void *alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment, bool *zero,
-            bool *commit, unsigned arena_index)
+void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment, bool *zero,
+                                bool *commit, unsigned arena_index)
 {
     // map return addresses aligned to page size
     void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (addr == nullptr)
     {
-        perror("Failed to mmap pages.");
+        throw std::runtime_error("Failed to mmap pages.");
     }
 
     auto num_pages = calculate_allocated_pages(size);
-    std::vector<void *> page_pointers;
-    std::vector<int> nodes;
-    std::vector<int> status;
-    page_pointers.reserve(num_pages);
-    nodes.reserve(num_pages);
-    status.resize(num_pages);
+    std::vector<void *> page_pointers(num_pages);
+    std::vector<int> nodes(num_pages);
+    std::vector<int> status(num_pages);
     for (int i = 0; i < num_pages; ++i)
     {
-        page_pointers.emplace_back(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
-        nodes.emplace_back(NumaMemoryResource::node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE)));
+        page_pointers[i] = reinterpret_cast<char *>(addr) + (i * PAGE_SIZE);
+        nodes[i] = NumaMemoryResource::node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
     }
-    if (move_pages(0, num_pages, page_pointers.data(), nodes.data(), status.data(), MPOL_MF_MOVE_ALL) != 0)
+    if (move_pages(0, num_pages, page_pointers.data(), nodes.data(), status.data(), 0) != 0)
     {
-        perror("move pages failed");
+        throw std::runtime_error("move_pages failed");
     }
     for (int i : status)
     {
         if (i != 0)
         {
-            perror("page could not be moved");
+            throw std::runtime_error("Page could not be moved. err: " + std::to_string(i));
         }
     }
     // do

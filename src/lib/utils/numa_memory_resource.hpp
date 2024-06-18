@@ -11,9 +11,6 @@ using NodeID = u_int16_t;
 std::size_t get_page_size();
 std::size_t calculate_allocated_pages(size_t size);
 
-void *alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment, bool *zero,
-            bool *commit, unsigned arena_index);
-
 /**
  * The base memory resource for NUMA memory allocation.
  *
@@ -40,6 +37,10 @@ public:
 
     static NodeID node_id(void *p);
 
+    static void *alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment, bool *zero,
+                       bool *commit, unsigned arena_index);
+
 protected:
+    extent_hooks_t extentHooks_;
     int32_t _allocation_flags{0};
 };
