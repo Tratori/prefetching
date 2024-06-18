@@ -1,8 +1,8 @@
 include_directories(utils)
 
 add_library(utils utils/profiler.cpp utils/numa_memory_resource.cpp)
-target_link_libraries(utils nlohmann_json::nlohmann_json numa jemalloc)
-
+target_include_directories(utils SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../../third_party/jemalloc/include)
+target_link_libraries(utils nlohmann_json::nlohmann_json numa custom_jemalloc)
 
 add_library(hashmap hashmap.cpp)
 target_link_libraries(hashmap PRIVATE utils)
