@@ -5,6 +5,7 @@ target_include_directories(utils SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../..
 target_link_libraries(utils nlohmann_json::nlohmann_json numa custom_jemalloc)
 
 add_library(hashmap hashmap.cpp)
+target_include_directories(hashmap SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../../third_party/jemalloc/include)
 target_link_libraries(hashmap PRIVATE utils)
 add_library(random_access random_access.cpp)
 target_link_libraries(random_access PRIVATE utils)
