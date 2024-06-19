@@ -2,8 +2,8 @@
 #include <stdexcept>
 #include <sys/mman.h>
 #include <numaif.h>
+#include <numa.h>
 #include <vector>
-
 #include <sstream>
 
 #include <boost/container/pmr/memory_resource.hpp>
@@ -61,7 +61,7 @@ NumaMemoryResource::NumaMemoryResource()
 
 void *NumaMemoryResource::do_allocate(std::size_t bytes, std::size_t alignment)
 {
-    const auto addr = mallocx(bytes, _allocation_flags);
+    const auto addr = mallocx(bytes, _allocation_flags | MALLOCX_ALIGN(alignment));
     return addr;
 }
 
@@ -84,30 +84,29 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
                                 bool *commit, unsigned arena_index)
 {
     // map return addresses aligned to page size
-    void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
+    void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (addr == nullptr)
     {
         throw std::runtime_error("Failed to mmap pages.");
     }
-
     unsigned long num_pages = calculate_allocated_pages(size);
     std::vector<void *> page_pointers(num_pages);
     std::vector<int> nodes(num_pages);
-    std::vector<int> status(num_pages);
+    std::vector<int> status(num_pages, -999);
     for (int i = 0; i < num_pages; ++i)
     {
         page_pointers[i] = reinterpret_cast<char *>(addr) + (i * PAGE_SIZE);
         nodes[i] = NumaMemoryResource::node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
     }
-    if (move_pages(0, num_pages, page_pointers.data(), nodes.data(), status.data(), 0) != 0)
+    if (numa_move_pages(0, num_pages, page_pointers.data(), nodes.data(), status.data(), 0) != 0)
     {
         throw std::runtime_error("move_pages failed");
     }
-    for (int i : status)
+    for (int i = 0; i < num_pages; ++i)
     {
-        if (i != 0)
+        if (status[i] != nodes[i])
         {
-            throw std::runtime_error("Page could not be moved. err: " + std::to_string(i));
+            throw std::runtime_error("Page not moved to correct node");
         }
     }
     // do
