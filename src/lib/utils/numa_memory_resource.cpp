@@ -84,7 +84,7 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
                                 bool *commit, unsigned arena_index)
 {
     // map return addresses aligned to page size
-    void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
     if (addr == nullptr)
     {
         throw std::runtime_error("Failed to mmap pages.");
@@ -106,7 +106,7 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
     {
         if (status[i] != nodes[i])
         {
-            throw std::runtime_error("Page not moved to correct node");
+            throw std::runtime_error("Page not moved to correct node. Expected: " + std::to_string(nodes[i]) + ". Gotten: " + std::to_string(status[i]));
         }
     }
     // do
