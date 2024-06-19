@@ -96,7 +96,7 @@ int main()
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> uniform_dis(0, NUM_KEYS - 1);
 
-    zipfian_int_distribution<int>::param_type p(1, 1e6, 0.99, 27.000);
+    zipfian_int_distribution<int>::param_type p(0, NUM_KEYS - 1, 0.99, 27.000);
     zipfian_int_distribution<int> zipfian_distribution(p);
 
     for (uint32_t i = 0; i < NUM_KEYS; i++)
