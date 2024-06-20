@@ -7,4 +7,4 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmark)
 
 add_executable(test_memory_allocator_pmr test_memory_allocator_pmr.cpp)
 
-target_link_libraries(test_memory_allocator_pmr hashmap)
+target_link_libraries(test_memory_allocator_pmr utils)

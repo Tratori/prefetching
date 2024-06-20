@@ -12,11 +12,12 @@
 
 using namespace std;
 
-template<typename K, typename V>
-struct Node {
+template <typename K, typename V>
+class Node
+{
+public:
     K key;
     V value;
-    Node(K k, V v) : key(k), value(v) {}
 };
 
 template<typename K, typename V>
