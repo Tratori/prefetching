@@ -11,6 +11,8 @@
 
 #include "numa_memory_resource.hpp"
 
+#define USE_MBIND // vs. numa_move_pages
+
 inline std::size_t get_page_size()
 {
     return static_cast<std::size_t>(sysconf(_SC_PAGESIZE));
@@ -84,12 +86,31 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
                                 bool *commit, unsigned arena_index)
 {
     // map return addresses aligned to page size
-    void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
+#ifdef USE_MBIND
+    const auto mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS;
+#else
+    const auto mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE;
+#endif
+    void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, mmap_flags, -1, 0);
     if (addr == nullptr)
     {
         throw std::runtime_error("Failed to mmap pages.");
     }
     unsigned long num_pages = calculate_allocated_pages(size);
+
+#ifdef USE_MBIND
+    const auto max_node = numa_max_node() + 1;
+    auto bitmask = numa_bitmask_alloc(numa_num_configured_cpus());
+    for (int i = 0; i < num_pages; ++i)
+    {
+        const auto node_id = NumaMemoryResource::node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
+        numa_bitmask_setbit(bitmask, node_id);
+        mbind(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE), PAGE_SIZE, MPOL_BIND, bitmask->maskp, max_node, 0);
+        numa_bitmask_clearbit(bitmask, node_id);
+        ++i;
+    }
+    numa_bitmask_free(bitmask);
+#else
     std::vector<void *> page_pointers(num_pages);
     std::vector<int> nodes(num_pages);
     std::vector<int> status(num_pages, -999);
@@ -109,11 +130,7 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
             throw std::runtime_error("Page not moved to correct node. Expected: " + std::to_string(nodes[i]) + ". Gotten: " + std::to_string(status[i]));
         }
     }
-    // do
-    //{
-    //     mbind(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE), PAGE_SIZE, MPOL_BIND, /* nodemask */, /* num_numa_nodes */, 0);
-    //     ++i;
-    // }
-    // while (i * PAGE_SIZE < size);
+#endif
+
     return addr;
 }
