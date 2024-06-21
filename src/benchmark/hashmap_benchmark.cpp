@@ -1,4 +1,5 @@
 #include "hashmap.hpp"
+#include "prefetching.hpp"
 
 #include <random>
 #include <functional>
@@ -87,6 +88,7 @@ nlohmann::json execute_benchmark(HashMap<uint32_t, uint32_t> &openMap, int GROUP
 
 int main()
 {
+    auto manager = Prefetching::get().numa_manager;
     PrefetchProfiler profiler{30};
     NumaMemoryResource mem_res{};
     HashMap<uint32_t, uint32_t> openMap{500'000, profiler, mem_res};

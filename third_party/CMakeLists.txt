@@ -4,6 +4,10 @@ set(BENCHMARK_DOWNLOAD_DEPENDENCIES true)
 add_subdirectory(benchmark)
 add_subdirectory(json)
 
+add_library(cxxopts INTERFACE)
+target_include_directories(cxxopts INTERFACE cxxopts/include)
+
+
 # Only configure jemalloc for non-Apple builds, as we cannot properly replace the allocator on Mac using static linking:
 #   If you ./configure jemalloc with --with-jemalloc-prefix="" on OSX and static link the library, your malloc's will
 #   be handled by jemalloc. However, dynamically linked libraries will still use the default system zone. That is, any

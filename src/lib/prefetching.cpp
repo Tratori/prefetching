@@ -2,5 +2,4 @@
 
 Prefetching::Prefetching()
 {
-    numa_manager = {};
 }
