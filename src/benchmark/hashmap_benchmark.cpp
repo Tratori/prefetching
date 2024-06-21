@@ -86,9 +86,16 @@ nlohmann::json execute_benchmark(HashMap<uint32_t, uint32_t> &openMap, int GROUP
     return results;
 };
 
-int main()
+int main(int argc, char **argv)
 {
     auto manager = Prefetching::get().numa_manager;
+    auto &benchmark_config = Prefetching::get().runtime_config;
+    // clang-format off
+    benchmark_config.add_options()
+        ("d,distribution", "Type of distribution", cxxopts::value<std::vector<std::string>>()->default_value("uniform,zipfian"))
+        ("number_keys", "Number of keys to fill the hashmap with", cxxopts::value<std::vector<long>>()->default_value("10000000"));
+    // clang-format on
+    benchmark_config.parse(argc, argv);
     PrefetchProfiler profiler{30};
     NumaMemoryResource mem_res{};
     HashMap<uint32_t, uint32_t> openMap{500'000, profiler, mem_res};
