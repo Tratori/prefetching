@@ -1,7 +1,8 @@
-#include "utils/numa_memory_resource.hpp"
 #include <list>
 #include <iostream>
 #include <memory_resource>
+
+#include "numa/numa_memory_resource.hpp"
 
 class Test
 {

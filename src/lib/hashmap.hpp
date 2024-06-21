@@ -8,7 +8,7 @@
 
 #include "coroutine.hpp"
 #include "utils/profiler.cpp"
-#include "utils/numa_memory_resource.hpp"
+#include "numa/numa_memory_resource.hpp"
 
 using namespace std;
 

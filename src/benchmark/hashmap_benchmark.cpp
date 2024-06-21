@@ -8,7 +8,7 @@
 #include <fstream>
 
 #include "zipfian_int_distribution.cpp"
-#include "utils/numa_memory_resource.hpp"
+#include "numa/numa_memory_resource.hpp"
 
 const int NUM_KEYS = 10'000'000;
 const int TOTAL_QUERIES = 25'000'000;
