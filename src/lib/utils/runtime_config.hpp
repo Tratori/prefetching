@@ -5,6 +5,14 @@
 using ConfigMap = std::unordered_map<std::string, std::string>;
 using ParsingResultIterator = cxxopts::ParseResult::Iterator;
 
+template <typename T>
+T convert(std::string string)
+{
+    T result;
+    cxxopts::values::parse_value(string, result);
+    return result;
+}
+
 class RuntimeConfig
 {
 public:

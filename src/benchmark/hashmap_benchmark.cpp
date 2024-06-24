@@ -11,7 +11,6 @@
 #include "zipfian_int_distribution.cpp"
 #include "numa/numa_memory_resource.hpp"
 
-const int NUM_KEYS = 10'000'000;
 const int TOTAL_QUERIES = 25'000'000;
 const int GROUP_SIZE = 32;
 const int AMAC_REQUESTS_SIZE = 1024;
@@ -93,32 +92,52 @@ int main(int argc, char **argv)
     // clang-format off
     benchmark_config.add_options()
         ("d,distribution", "Type of distribution", cxxopts::value<std::vector<std::string>>()->default_value("uniform,zipfian"))
-        ("number_keys", "Number of keys to fill the hashmap with", cxxopts::value<std::vector<long>>()->default_value("10000000"));
+        ("number_keys", "Number of keys to fill the hashmap with", cxxopts::value<std::vector<long>>()->default_value("10000000"))
+        ("number_buckets", "Number of buckets in the hashmap", cxxopts::value<std::vector<size_t>>()->default_value("500000"));
     // clang-format on
     benchmark_config.parse(argc, argv);
-    PrefetchProfiler profiler{30};
-    NumaMemoryResource mem_res{};
-    HashMap<uint32_t, uint32_t> openMap{500'000, profiler, mem_res};
 
-    nlohmann::json results;
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> uniform_dis(0, NUM_KEYS - 1);
-
-    zipfian_int_distribution<int>::param_type p(0, NUM_KEYS - 1, 0.99, 27.000);
-    zipfian_int_distribution<int> zipfian_distribution(p);
-
-    for (uint32_t i = 0; i < NUM_KEYS; i++)
+    int benchmark_run = 0;
+    for (auto &runtime_config : benchmark_config.get_runtime_configs())
     {
-        openMap.insert(i, i + 1);
+        auto num_keys = convert<long>(runtime_config["number_keys"]);
+
+        PrefetchProfiler profiler{30};
+        NumaMemoryResource mem_res{};
+        HashMap<uint32_t, uint32_t> openMap{convert<size_t>(runtime_config["number_buckets"]), profiler, mem_res};
+
+        nlohmann::json results;
+        std::random_device rd;
+        std::mt19937 gen(rd());
+
+        std::uniform_int_distribution<> uniform_dis(0, num_keys - 1);
+
+        zipfian_int_distribution<int>::param_type p(0, num_keys - 1, 0.99, 27.000);
+        zipfian_int_distribution<int> zipfian_distribution(p);
+
+        for (uint32_t i = 0; i < num_keys; i++)
+        {
+            openMap.insert(i, i + 1);
+        }
+
+        if (runtime_config["distribution"] == "uniform")
+        {
+            std::cout << "----- Measuring Uniform Accesses -----" << std::endl;
+            results["uniform"] = execute_benchmark(openMap, GROUP_SIZE, AMAC_REQUESTS_SIZE, gen, uniform_dis);
+        }
+        else if (runtime_config["distribution"] == "zipfian")
+        {
+            std::cout << "----- Measuring Zipfian Accesses -----" << std::endl;
+            results["zipfian"] = execute_benchmark(openMap, GROUP_SIZE, AMAC_REQUESTS_SIZE, gen, zipfian_distribution);
+        }
+        else
+        {
+            std::cout << "Unknown Distribution Defined: " << runtime_config["distribution"] << std::endl;
+        }
+
+        auto results_file = std::ofstream{"hashmap_benchmark_" + std::to_string(benchmark_run++) + ".json"};
+        results_file << results.dump(-1) << std::flush;
     }
 
-    std::cout << "----- Measuring Uniform Accesses -----" << std::endl;
-    results["uniform"] = execute_benchmark(openMap, GROUP_SIZE, AMAC_REQUESTS_SIZE, gen, uniform_dis);
-    std::cout << "----- Measuring Zipfian Accesses -----" << std::endl;
-    results["zipfian"] = execute_benchmark(openMap, GROUP_SIZE, AMAC_REQUESTS_SIZE, gen, zipfian_distribution);
-
-    auto results_file = std::ofstream{"hashmap_benchmark.json"};
-    results_file << results.dump(-1) << std::flush;
     return 0;
 }
