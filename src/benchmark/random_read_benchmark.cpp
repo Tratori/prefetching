@@ -7,7 +7,7 @@
 #include "zipfian_int_distribution.cpp"
 #include <iostream>
 
-const int NUM_VALUES = 10'000'000;
+const int NUM_VALUES = 6'000'000; // ~ roughly 24MB seems to be the sweet-spot for low tlb misses, high cache misses
 const int TOTAL_QUERIES = 25'000'000;
 const int GROUP_SIZE = 32;
 const int AMAC_REQUESTS_SIZE = 1024;
