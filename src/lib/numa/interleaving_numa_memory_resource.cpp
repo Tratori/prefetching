@@ -12,8 +12,6 @@ InterleavingNumaMemoryResource::InterleavingNumaMemoryResource(NodeID num_numa_n
 
 NodeID InterleavingNumaMemoryResource::node_id(void *p)
 {
-    // ~ 4 adjacent pages will be on the same node (i hope lol)
-    NodeID test = (reinterpret_cast<uint64_t>(p) >> 14) % num_numa_nodes_;
-    std::cout << test << std::endl;
+    // 2/4 (not sure rn, doesnt really matter) adjacent pages will be on the same node (i hope lol)
     return (reinterpret_cast<uint64_t>(p) >> 14) % num_numa_nodes_;
 }
