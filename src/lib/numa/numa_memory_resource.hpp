@@ -35,7 +35,7 @@ public:
 
     bool do_is_equal(const memory_resource &other) const noexcept override;
 
-    static NodeID node_id(void *p);
+    NodeID node_id(void *p);
 
     static void *alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment, bool *zero,
                        bool *commit, unsigned arena_index);

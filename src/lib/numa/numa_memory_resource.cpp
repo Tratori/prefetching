@@ -4,6 +4,7 @@
 #include <numaif.h>
 #include <numa.h>
 #include <vector>
+#include <unordered_map>
 #include <sstream>
 
 #include <boost/container/pmr/memory_resource.hpp>
@@ -12,6 +13,8 @@
 #include "numa_memory_resource.hpp"
 
 #define USE_MBIND // vs. numa_move_pages
+
+std::unordered_map<unsigned, NumaMemoryResource *> arena_to_resource_map;
 
 inline std::size_t get_page_size()
 {
@@ -59,6 +62,7 @@ NumaMemoryResource::NumaMemoryResource()
     }
 
     _allocation_flags = MALLOCX_ARENA(arena_id) | MALLOCX_TCACHE_NONE;
+    arena_to_resource_map[arena_id] = this;
 };
 
 void *NumaMemoryResource::do_allocate(std::size_t bytes, std::size_t alignment)
@@ -101,12 +105,13 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
 #ifdef USE_MBIND
     const auto max_node = numa_max_node() + 1;
     auto bitmask = numa_bitmask_alloc(numa_num_configured_cpus());
+    auto memory_resource = arena_to_resource_map[arena_index];
     for (int i = 0; i < num_pages; ++i)
     {
-        const auto node_id = NumaMemoryResource::node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
-        numa_bitmask_setbit(bitmask, node_id);
+        const auto target_node_id = memory_resource->node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
+        numa_bitmask_setbit(bitmask, target_node_id);
         mbind(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE), PAGE_SIZE, MPOL_BIND, bitmask->maskp, max_node, 0);
-        numa_bitmask_clearbit(bitmask, node_id);
+        numa_bitmask_clearbit(bitmask, target_node_id);
         ++i;
     }
     numa_bitmask_free(bitmask);
