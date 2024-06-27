@@ -9,7 +9,7 @@
 #include <fstream>
 
 #include "zipfian_int_distribution.cpp"
-#include "numa/numa_memory_resource.hpp"
+#include "numa/static_numa_memory_resource.hpp"
 
 const int TOTAL_QUERIES = 25'000'000;
 const int GROUP_SIZE = 32;
@@ -103,7 +103,7 @@ int main(int argc, char **argv)
         auto num_keys = convert<long>(runtime_config["number_keys"]);
 
         PrefetchProfiler profiler{30};
-        NumaMemoryResource mem_res{};
+        StaticNumaMemoryResource mem_res{0};
         HashMap<uint32_t, uint32_t> openMap{convert<size_t>(runtime_config["number_buckets"]), profiler, mem_res};
 
         nlohmann::json results;

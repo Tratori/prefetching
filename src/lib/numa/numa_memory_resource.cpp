@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <sstream>
+#include <errno.h>
 
 #include <boost/container/pmr/memory_resource.hpp>
 #include <jemalloc/jemalloc.h>
@@ -103,14 +104,18 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
     unsigned long num_pages = calculate_allocated_pages(size);
 
 #ifdef USE_MBIND
-    const auto max_node = numa_max_node() + 1;
+    const auto max_node = numa_max_node();
     auto bitmask = numa_bitmask_alloc(numa_num_configured_cpus());
     auto memory_resource = arena_to_resource_map[arena_index];
     for (int i = 0; i < num_pages; ++i)
     {
         const auto target_node_id = memory_resource->node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
         numa_bitmask_setbit(bitmask, target_node_id);
-        mbind(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE), PAGE_SIZE, MPOL_BIND, bitmask->maskp, max_node, 0);
+        auto ret = mbind(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE), PAGE_SIZE, MPOL_BIND, bitmask->maskp, max_node, 0);
+        if (ret != 0)
+        {
+            throw std::runtime_error("mbind failed with " + std::to_string(ret) + " errno: " + strerror(errno));
+        }
         numa_bitmask_clearbit(bitmask, target_node_id);
         ++i;
     }

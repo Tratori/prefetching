@@ -2,7 +2,7 @@
 #include <iostream>
 #include <memory_resource>
 
-#include "numa/numa_memory_resource.hpp"
+#include "numa/static_numa_memory_resource.hpp"
 
 class Test
 {
@@ -21,7 +21,7 @@ public:
 
 int main()
 {
-    NumaMemoryResource mem_res{};
+    StaticNumaMemoryResource mem_res{0};
 
     // --- Test 1 -> Vector containing int ---
     std::cout << "--- Test 1 ---" << std::endl;

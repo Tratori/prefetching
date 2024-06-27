@@ -16,3 +16,6 @@ add_executable(random_read_benchmark random_read_benchmark.cpp)
 
 target_link_libraries(random_read_benchmark random_access)
 
+add_executable(tree_simulation tree_simulation_benchmark.cpp)
+
+target_link_libraries(tree_simulation prefetching)
