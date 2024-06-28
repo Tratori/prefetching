@@ -31,8 +31,6 @@ void InterleavingNumaMemoryResource::move_pages_policed(void *p, size_t size)
     {
         return;
     }
-    std::cout << "max node: " << max_node << std::endl
-              << std::flush;
     const auto PAGE_SIZE = get_page_size();
     unsigned long num_pages = calculate_allocated_pages(size);
     auto bitmask = numa_bitmask_alloc(numa_num_configured_cpus());
