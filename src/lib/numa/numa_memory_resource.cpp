@@ -103,10 +103,10 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
     }
     unsigned long num_pages = calculate_allocated_pages(size);
 
+    auto memory_resource = arena_to_resource_map[arena_index];
 #ifdef USE_MBIND
     const auto max_node = numa_max_node();
     auto bitmask = numa_bitmask_alloc(numa_num_configured_cpus());
-    auto memory_resource = arena_to_resource_map[arena_index];
     for (int i = 0; i < num_pages; ++i)
     {
         const auto target_node_id = memory_resource->node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
@@ -127,9 +127,9 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
     for (int i = 0; i < num_pages; ++i)
     {
         page_pointers[i] = reinterpret_cast<char *>(addr) + (i * PAGE_SIZE);
-        nodes[i] = NumaMemoryResource::node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
+        nodes[i] = memory_resource->node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
     }
-    if (numa_move_pages(0, num_pages, page_pointers.data(), nodes.data(), status.data(), 0) != 0)
+    if (numa_move_pages(0, num_pages, page_pointers.data(), nodes.data(), status.data(), MPOL_MF_MOVE) != 0)
     {
         throw std::runtime_error("move_pages failed");
     }
