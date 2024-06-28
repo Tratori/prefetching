@@ -36,15 +36,4 @@ struct task
     {
         empty = true;
     }
-    struct Awaiter
-    {
-        bool await_ready() const noexcept { return false; }
-        void await_suspend(std::coroutine_handle<>) const noexcept {}
-        void await_resume() const noexcept {}
-    };
-
-    auto operator co_await() noexcept
-    {
-        return Awaiter{};
-    }
 };

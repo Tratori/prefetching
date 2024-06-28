@@ -76,14 +76,14 @@ task co_tree_traversal(size_t num_node_traversal_per_lookup, char *data, uint32_
     {
         auto next_node = node_distribution(gen);
         uint32_t found;
-        co_await co_find_in_node(reinterpret_cast<uint32_t *>(data + (next_node * tree_node_size)), k, values_per_node, found);
-
+        co_find_in_node(reinterpret_cast<uint32_t *>(data + (next_node * tree_node_size)), k, values_per_node, found);
         sum += found;
     }
     if (sum != num_node_traversal_per_lookup * k)
     {
         "lookups failed " + std::to_string(sum) + " vs. " + std::to_string(num_node_traversal_per_lookup * k);
     }
+    co_return;
 }
 
 void tree_simulation_coroutine(size_t repetitions, size_t group_size, size_t values_per_node,
