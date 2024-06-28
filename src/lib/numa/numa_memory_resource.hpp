@@ -2,13 +2,17 @@
 
 #include <cstddef>
 #include <memory_resource>
+#include <unistd.h>
 
 // #include <boost/container/pmr/memory_resource.hpp>
 #include <jemalloc/jemalloc.h>
 
 using NodeID = u_int16_t;
 
-std::size_t get_page_size();
+inline std::size_t get_page_size()
+{
+    return static_cast<std::size_t>(sysconf(_SC_PAGESIZE));
+}
 std::size_t calculate_allocated_pages(size_t size);
 
 /**
@@ -36,6 +40,7 @@ public:
     bool do_is_equal(const memory_resource &other) const noexcept override;
 
     virtual NodeID node_id(void *p) = 0;
+    virtual void move_pages_policed(void *p, size_t size) = 0;
 
     static void *alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment, bool *zero,
                        bool *commit, unsigned arena_index);

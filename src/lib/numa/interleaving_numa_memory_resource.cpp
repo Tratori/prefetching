@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <memory_resource>
+#include <numaif.h>
+#include <numa.h>
 #include <iostream>
 
 #include <jemalloc/jemalloc.h>
@@ -10,8 +12,63 @@
 
 InterleavingNumaMemoryResource::InterleavingNumaMemoryResource(NodeID num_numa_nodes) : num_numa_nodes_(num_numa_nodes){};
 
+// There is a limit to the number of memory areas a process can have (cat /proc/sys/vm/max_map_count)
+// which defaults to 65536. If we were to interleave at page granularity, we create a new memory area,
+// per page, which would limit our memory to ~256MiB. Thus if we were to manually interleave based on the
+// pointer alone, we must choose a higher granularity. Interleaving every 512th page leaves us with roughly
+// 128 GiB of Memory. If for some reason, still to many areas are created, the mbind call will likely fail
+// with: "mbind failed with -1 errno: Cannot allocate memory"
 NodeID InterleavingNumaMemoryResource::node_id(void *p)
 {
-    // 2/4 (not sure rn, doesnt really matter) adjacent pages will be on the same node (i hope lol)
-    return (reinterpret_cast<uint64_t>(p) >> 14) % num_numa_nodes_;
+    return (reinterpret_cast<uint64_t>(p) >> 20) % num_numa_nodes_;
+}
+
+void InterleavingNumaMemoryResource::move_pages_policed(void *p, size_t size)
+{
+    const auto max_node = numa_max_node();
+
+    if (max_node == 0)
+    {
+        return;
+    }
+    std::cout << "max node: " << max_node << std::endl
+              << std::flush;
+    const auto PAGE_SIZE = get_page_size();
+    unsigned long num_pages = calculate_allocated_pages(size);
+    auto bitmask = numa_bitmask_alloc(numa_num_configured_cpus());
+
+    size_t curr_size = PAGE_SIZE;
+    char *last_start = reinterpret_cast<char *>(p);
+    NodeID curr_node_id = node_id(reinterpret_cast<char *>(p));
+    for (int i = 1; i < num_pages; ++i)
+    {
+        const auto target_node_id = node_id(reinterpret_cast<char *>(p) + (i * PAGE_SIZE));
+        if (target_node_id != curr_node_id)
+        {
+            numa_bitmask_setbit(bitmask, curr_node_id);
+            auto ret = mbind(last_start, curr_size, MPOL_BIND, bitmask->maskp, max_node, 0);
+            if (ret != 0)
+            {
+                throw std::runtime_error("mbind failed with " + std::to_string(ret) + " errno: " + strerror(errno));
+            }
+            numa_bitmask_clearbit(bitmask, curr_node_id);
+
+            last_start = reinterpret_cast<char *>(p) + (i * PAGE_SIZE);
+            curr_size = PAGE_SIZE;
+            curr_node_id = target_node_id;
+        }
+        else
+        {
+            curr_size += PAGE_SIZE;
+        }
+    }
+
+    numa_bitmask_setbit(bitmask, curr_node_id);
+    auto ret = mbind(last_start, curr_size, MPOL_BIND, bitmask->maskp, max_node, 0);
+    if (ret != 0)
+    {
+        throw std::runtime_error("mbind failed with " + std::to_string(ret) + " errno: " + strerror(errno));
+    }
+    numa_bitmask_clearbit(bitmask, curr_node_id);
+    numa_bitmask_free(bitmask);
 }

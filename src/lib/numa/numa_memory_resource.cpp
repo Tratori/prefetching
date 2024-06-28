@@ -17,11 +17,6 @@
 
 std::unordered_map<unsigned, NumaMemoryResource *> arena_to_resource_map;
 
-inline std::size_t get_page_size()
-{
-    return static_cast<std::size_t>(sysconf(_SC_PAGESIZE));
-}
-
 static const auto PAGE_SIZE = get_page_size();
 
 std::size_t calculate_allocated_pages(size_t size)
@@ -104,43 +99,8 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
     unsigned long num_pages = calculate_allocated_pages(size);
 
     auto memory_resource = arena_to_resource_map[arena_index];
-#ifdef USE_MBIND
-    const auto max_node = numa_max_node();
-    auto bitmask = numa_bitmask_alloc(numa_num_configured_cpus());
-    for (int i = 0; i < num_pages; ++i)
-    {
-        const auto target_node_id = memory_resource->node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
-        numa_bitmask_setbit(bitmask, target_node_id);
-        auto ret = mbind(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE), PAGE_SIZE, MPOL_BIND, bitmask->maskp, max_node, 0);
-        if (ret != 0)
-        {
-            throw std::runtime_error("mbind failed with " + std::to_string(ret) + " errno: " + strerror(errno));
-        }
-        numa_bitmask_clearbit(bitmask, target_node_id);
-        ++i;
-    }
-    numa_bitmask_free(bitmask);
-#else
-    std::vector<void *> page_pointers(num_pages);
-    std::vector<int> nodes(num_pages);
-    std::vector<int> status(num_pages, -999);
-    for (int i = 0; i < num_pages; ++i)
-    {
-        page_pointers[i] = reinterpret_cast<char *>(addr) + (i * PAGE_SIZE);
-        nodes[i] = memory_resource->node_id(reinterpret_cast<char *>(addr) + (i * PAGE_SIZE));
-    }
-    if (numa_move_pages(0, num_pages, page_pointers.data(), nodes.data(), status.data(), MPOL_MF_MOVE) != 0)
-    {
-        throw std::runtime_error("move_pages failed");
-    }
-    for (int i = 0; i < num_pages; ++i)
-    {
-        if (status[i] != nodes[i])
-        {
-            throw std::runtime_error("Page not moved to correct node. Expected: " + std::to_string(nodes[i]) + ". Gotten: " + std::to_string(status[i]));
-        }
-    }
-#endif
+
+    memory_resource->move_pages_policed(addr, size);
 
     return addr;
 }

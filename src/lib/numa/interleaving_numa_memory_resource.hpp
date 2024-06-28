@@ -14,6 +14,7 @@ public:
     explicit InterleavingNumaMemoryResource(NodeID num_numa_nodes);
 
     NodeID node_id(void *p) override;
+    void move_pages_policed(void *p, size_t size) override;
 
 protected:
     const NodeID num_numa_nodes_;

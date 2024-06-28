@@ -10,6 +10,13 @@ NumaManager::NumaManager()
     {
         throw std::runtime_error("Numa library not available.");
     }
+
+    if (numa_max_node() == 0)
+    {
+        std::cout << std::endl
+                  << "\033[1;31m[WARNING]: only one NUMA node identified, NUMA bindings won't have any effect.\033[0m" << std::endl
+                  << std::endl;
+    }
     init_topology_info();
     print_topology();
 }

@@ -15,6 +15,7 @@ public:
     explicit StaticNumaMemoryResource(NodeID target_numa_node);
 
     NodeID node_id(void *p);
+    void move_pages_policed(void *p, size_t size);
 
 protected:
     const NodeID target_numa_node_;
