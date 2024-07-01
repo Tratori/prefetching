@@ -183,6 +183,65 @@ task co_tree_traversal(TreeSimulationConfig &config, char *data, uint32_t k, uin
     co_return;
 }
 
+template <typename handle>
+auto jump_to_other_node(size_t curr_node_id, size_t target_node_id, size_t starting_node)
+{
+    struct awaitable
+    {
+        size_t curr_node_id;
+        size_t target_node_id;
+        size_t starting_node;
+        bool await_ready() { return false; }
+        void await_suspend(handle h)
+        {
+            auto &tfs = *(SCHEDULER_THREAD_INFO.tfs);
+            auto const &local_tf = tfs[curr_node_id].load();
+            if (curr_node_id == starting_node)
+            {
+                local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Remote;
+            }
+            else
+            {
+                local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Empty;
+            }
+            //  insert into remote scheduler
+            while (tfs[target_node_id].load() == nullptr)
+            { // remote scheduler not yet initialized
+            }
+            auto const &remote_tf = tfs[target_node_id].load();
+            remote_tf->coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = local_tf->coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id].load();
+            remote_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Resumable;
+        }
+        void await_resume() {}
+    };
+    return awaitable{curr_node_id, target_node_id, starting_node};
+}
+
+template <typename handle>
+auto handle_exit(size_t curr_node_id, size_t starting_node)
+{
+    struct awaitable
+    {
+        size_t curr_node_id;
+        size_t starting_node;
+        bool await_ready() { return false; }
+        void await_suspend(handle h)
+        {
+            auto const curr_node_id = SCHEDULER_THREAD_INFO.curr_group_node_id;
+            if (curr_node_id != starting_node)
+            {
+                auto &tfs = *(SCHEDULER_THREAD_INFO.tfs);
+                auto const &local_tf = tfs[curr_node_id].load();
+                local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Empty;
+                auto const &starting_tf = tfs[starting_node].load();
+                starting_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Resumable;
+            }
+        }
+        void await_resume() {}
+    };
+    return awaitable{curr_node_id, starting_node};
+}
+
 task co_tree_traversal_jumping(TreeSimulationConfig &config, char *data, uint32_t k, uint32_t values_per_node,
                                std::uniform_int_distribution<> node_distribution, auto gen)
 {
@@ -198,26 +257,7 @@ task co_tree_traversal_jumping(TreeSimulationConfig &config, char *data, uint32_
         auto const curr_node_id = SCHEDULER_THREAD_INFO.curr_group_node_id;
         if (target_node != curr_node_id)
         {
-            // set local scheduler tf slot to remote execution.
-            auto &tfs = *(SCHEDULER_THREAD_INFO.tfs);
-            auto const &local_tf = tfs[curr_node_id].load();
-            if (local_tf == tfs[starting_node].load())
-            {
-                local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Remote;
-            }
-            else
-            {
-                local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Empty;
-            }
-            //  insert into remote scheduler
-            while (tfs[target_node].load() == nullptr)
-            { // remote scheduler not yet initialized
-                co_await std::suspend_always{};
-            }
-            auto const &remote_tf = tfs[target_node].load();
-            remote_tf->coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = local_tf->coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id].load();
-            remote_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Resumable;
-            co_await std::suspend_always{};
+            co_await jump_to_other_node<task>(curr_node_id, target_node, starting_node);
         }
         // handling complete
         uint32_t found;
@@ -229,15 +269,7 @@ task co_tree_traversal_jumping(TreeSimulationConfig &config, char *data, uint32_
         "lookups failed " + std::to_string(sum) + " vs. " + std::to_string(config.num_node_traversal_per_lookup * k);
     }
     // gracefully exit
-    auto const curr_node_id = SCHEDULER_THREAD_INFO.curr_group_node_id;
-    if (curr_node_id != starting_node)
-    {
-        auto &tfs = *(SCHEDULER_THREAD_INFO.tfs);
-        auto const &local_tf = tfs[curr_node_id].load();
-        local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Empty;
-        auto const &starting_tf = tfs[starting_node].load();
-        starting_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Resumable;
-    }
+    co_await handle_exit<task>(SCHEDULER_THREAD_INFO.curr_group_node_id, starting_node);
     co_return;
 }
 
