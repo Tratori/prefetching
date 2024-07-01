@@ -197,7 +197,14 @@ task co_tree_traversal_jumping(TreeSimulationConfig &config, char *data, uint32_
             // set local scheduler tf slot to remote execution.
             auto &tfs = *(SCHEDULER_THREAD_INFO.tfs);
             auto const &local_tf = tfs[curr_node_id].load();
-            local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Remote;
+            if (local_tf == starting_node)
+            {
+                local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Remote;
+            }
+            else
+            {
+                local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Empty;
+            }
             //  insert into remote scheduler
             while (tfs[target_node].load() == nullptr)
             { // remote scheduler not yet initialized
