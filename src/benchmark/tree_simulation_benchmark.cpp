@@ -426,6 +426,7 @@ void scheduler_thread_function_jumping(NodeID cpu, std::vector<std::atomic<threa
                 }
                 break;
                 case Resumable:
+                {
                     bool resumable_found = false;
                     size_t last_resumable = 0;
                     for (size_t g = 0; g < thread_frames.size(); g++)
@@ -446,32 +447,34 @@ void scheduler_thread_function_jumping(NodeID cpu, std::vector<std::atomic<threa
                             last_resumable = g;
                         }
                     }
-                    if (!tf->coroutines[i].load()->coro.done())
-                    {
-                        tf->coroutines[i].load()->coro.resume();
-                    }
-                    else
-                    {
-                        delete tf->coroutines[i];
-                        tf->coroutines[i] = nullptr;
-                        tf->running_coroutines[i] = Finished;
-                        num_finished++;
-                        if (num_finished == repetitions)
+                }
+
+                        if (!tf->coroutines[i].load()->coro.done())
                         {
-                            finished++;
+                            tf->coroutines[i].load()->coro.resume();
                         }
-                        if (num_finished > repetitions)
+                        else
                         {
-                            throw std::runtime_error("Num_finished > repetitions.");
+                            delete tf->coroutines[i];
+                            tf->coroutines[i] = nullptr;
+                            tf->running_coroutines[i] = Finished;
+                            num_finished++;
+                            if (num_finished == repetitions)
+                            {
+                                finished++;
+                            }
+                            if (num_finished > repetitions)
+                            {
+                                throw std::runtime_error("Num_finished > repetitions.");
+                            }
                         }
-                    }
-                    break;
-                case Done:   // finished scheduling, ignore
-                case Remote: // Coroutine on other node, ignore
-                    break;
-                default:
-                    throw std::runtime_error("unknown state in running coroutines");
-                    break;
+                        break;
+                    case Done:   // finished scheduling, ignore
+                    case Remote: // Coroutine on other node, ignore
+                        break;
+                    default:
+                        throw std::runtime_error("unknown state in running coroutines");
+                        break;
                 }
             }
             else
