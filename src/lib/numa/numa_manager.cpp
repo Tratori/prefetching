@@ -19,6 +19,7 @@ NumaManager::NumaManager()
     }
     init_topology_info();
     print_topology();
+    interleaving_memory_resource.emplace(number_nodes);
 }
 
 void NumaManager::init_topology_info()

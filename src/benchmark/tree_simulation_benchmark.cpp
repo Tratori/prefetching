@@ -18,7 +18,45 @@
 #include "utils/utils.cpp"
 #include "coroutine.hpp"
 
-thread_local size_t curr_group_node_id = 9999;
+enum CoSlotState : uint8_t
+{
+    Empty,
+    Finished,
+    Resumable,
+    Remote,
+    Done
+};
+
+/*
+    TODO: run on SMT (aka all logical cores on a physical core)
+    We run the schedulers in groups, each group containing exactly one core per NUMA node.
+    Each scheduler "owns" a thread_frame where it stores coroutines that currently run on this thread.
+    Furthermore, scheduler 1 owns the first <coroutine_n> slots, scheduler 2 the next n slots, making sure
+    new work is pushed when coroutines are finished.
+*/
+struct thread_frame // TODO: align this struct to Cache line
+{
+    std::atomic<CoSlotState> *running_coroutines = nullptr;
+    std::atomic<task *> *coroutines = nullptr;
+    thread_frame(size_t number_of_coroutines)
+    {
+        running_coroutines = new std::atomic<CoSlotState>[number_of_coroutines];
+        coroutines = new std::atomic<task *>[number_of_coroutines];
+    }
+    ~thread_frame()
+    {
+        delete[] running_coroutines;
+        delete[] coroutines;
+    }
+};
+
+struct scheduler_thread_info
+{
+    NodeID curr_group_node_id = 9999;
+    std::vector<std::atomic<thread_frame *>> *tfs = nullptr;
+    size_t curr_coroutine_id = 0;
+};
+thread_local scheduler_thread_info SCHEDULER_THREAD_INFO;
 
 void pin_to_cpu(NodeID cpu)
 {
@@ -31,29 +69,6 @@ void pin_to_cpu(NodeID cpu)
         throw std::runtime_error("pinning thread to cpu failed (return code: " + std::to_string(return_code) + ").");
     }
 }
-
-/*
-    TODO: run on SMT (aka all logical cores on a physical core)
-    We run the schedulers in groups, each group containing exactly one core per NUMA node.
-    Each scheduler "owns" a thread_frame where it stores coroutines that currently run on this thread.
-    Furthermore, scheduler 1 owns the first <coroutine_n> slots, scheduler 2 the next n slots, making sure
-    new work is pushed when coroutines are finished.
-*/
-struct thread_frame // TODO: align this struct to Cache line
-{
-    std::atomic<uint8_t> *running_coroutines = nullptr;
-    std::atomic<task *> *coroutines = nullptr;
-    thread_frame(size_t number_of_coroutines)
-    {
-        running_coroutines = new std::atomic<uint8_t>[number_of_coroutines];
-        coroutines = new std::atomic<task *>[number_of_coroutines];
-    }
-    ~thread_frame()
-    {
-        delete[] running_coroutines;
-        delete[] coroutines;
-    }
-};
 
 template <typename handle>
 auto jump_between_threads(std::vector<thread_frame *> &thread_frames, NodeID from, NodeID to, int coroutine_id)
@@ -164,15 +179,68 @@ task co_tree_traversal(TreeSimulationConfig &config, char *data, uint32_t k, uin
     co_return;
 }
 
+task co_tree_traversal_jumping(TreeSimulationConfig &config, char *data, uint32_t k, uint32_t values_per_node,
+                               std::uniform_int_distribution<> node_distribution, auto gen)
+{
+    auto starting_node = SCHEDULER_THREAD_INFO.curr_group_node_id;
+
+    int sum = 0;
+    for (int j = 0; j < config.num_node_traversal_per_lookup; j++)
+    {
+        auto next_node = node_distribution(gen);
+
+        // handle node jumping
+        auto target_node = Prefetching::get().numa_manager.interleaving_memory_resource.value().node_id(reinterpret_cast<void *>(next_node));
+        auto const curr_node_id = SCHEDULER_THREAD_INFO.curr_group_node_id;
+        if (target_node != curr_node_id)
+        {
+            // set local scheduler tf slot to remote execution.
+            auto &tfs = *(SCHEDULER_THREAD_INFO.tfs);
+            auto const &local_tf = tfs[curr_node_id].load();
+            local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Remote;
+            //  insert into remote scheduler
+            while (tfs[target_node].load() == nullptr)
+            { // remote scheduler not yet initialized
+                co_await std::suspend_always{};
+            }
+            auto const &remote_tf = tfs[target_node].load();
+            remote_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Resumable;
+            remote_tf->coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = local_tf->coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id].load();
+            co_await std::suspend_always{};
+        }
+        // handling complete
+        uint32_t found;
+        co_find_in_node(reinterpret_cast<uint32_t *>(data + (next_node * config.tree_node_size)), k, values_per_node, found);
+        sum += found;
+    }
+    if (sum != config.num_node_traversal_per_lookup * k)
+    {
+        "lookups failed " + std::to_string(sum) + " vs. " + std::to_string(config.num_node_traversal_per_lookup * k);
+    }
+    // gracefully exit
+    auto const curr_node_id = SCHEDULER_THREAD_INFO.curr_group_node_id;
+    if (curr_node_id != starting_node)
+    {
+        auto &tfs = *(SCHEDULER_THREAD_INFO.tfs);
+        auto const &local_tf = tfs[curr_node_id].load();
+        local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Empty;
+        auto const &starting_tf = tfs[starting_node].load();
+        local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Resumable;
+        co_await std::suspend_always{};
+    }
+    co_return;
+}
+
 void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame *>> &thread_frames, char *data, size_t group_thread_id, size_t values_per_node,
                                size_t num_tree_nodes, std::atomic<size_t> &finished, TreeSimulationConfig config)
 {
     pin_to_cpu(cpu);
 
-    curr_group_node_id = group_thread_id;
     auto num_total_coroutine_slots = config.coroutines * config.numa_nodes;
     auto tf = new thread_frame{num_total_coroutine_slots};
     thread_frames[group_thread_id] = tf;
+    SCHEDULER_THREAD_INFO.curr_group_node_id = group_thread_id;
+    SCHEDULER_THREAD_INFO.tfs = &thread_frames;
 
     size_t num_finished = 0;
     size_t num_scheduled = 0;
@@ -188,15 +256,17 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
     {
         for (size_t i = 0; i < num_total_coroutine_slots; ++i)
         {
+            SCHEDULER_THREAD_INFO.curr_coroutine_id = i;
             if (tf_start_slot <= i && i < (tf_start_slot + config.coroutines))
             {
                 switch (tf->running_coroutines[i])
                 {
-                case 0: // empty, insert new
+                case Empty:
+                case Finished: // empty, insert new
                 {
                     if (num_scheduled == repetitions)
                     {
-                        tf->running_coroutines[i] = 2;
+                        tf->running_coroutines[i] = Done;
                         continue;
                     }
                     auto k = uniform_dis_node_value(gen);
@@ -204,10 +274,10 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
                                                                    uniform_dis_next_node, gen));
                     num_scheduled++;
                     tf->coroutines[i].load()->coro.resume();
-                    tf->running_coroutines[i] = 1;
+                    tf->running_coroutines[i] = Resumable;
                 }
                 break;
-                case 1:
+                case Resumable:
                     if (!tf->coroutines[i].load()->coro.done())
                     {
                         tf->coroutines[i].load()->coro.resume();
@@ -216,7 +286,7 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
                     {
                         delete tf->coroutines[i];
                         tf->coroutines[i] = nullptr;
-                        tf->running_coroutines[i] = 0;
+                        tf->running_coroutines[i] = Finished;
                         num_finished++;
                         if (num_finished == repetitions)
                         {
@@ -228,7 +298,8 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
                         }
                     }
                     break;
-                case 2: // finished scheduling, ignore
+                case Done:   // finished scheduling, ignore
+                case Remote: // Coroutine on other node, ignore
                     break;
                 default:
                     throw std::runtime_error("unknown state in running coroutines");
@@ -237,17 +308,130 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
             }
             else
             {
-                // Handle other coroutines if necessary
-                if (tf->running_coroutines[i] > 0)
+                switch (tf->running_coroutines[i])
                 {
+                case Resumable:
                     if (!tf->coroutines[i].load()->coro.done())
                     {
                         tf->coroutines[i].load()->coro.resume();
                     }
                     else
                     {
-                        throw std::runtime_error("Coroutine finished on foreign node");
+                        throw std::runtime_error("Coroutine finished on a foreign node without clean up");
                     }
+                    break;
+                case Empty:
+                    break;
+                default:
+                    throw std::runtime_error("Remote slot encountered invalid state " + std::to_string(tf->running_coroutines[i]));
+                    break;
+                }
+            }
+        }
+        if (num_finished == repetitions)
+        {
+            if (finished.load() == config.numa_nodes)
+            {
+                return;
+            }
+        }
+    }
+}
+
+void scheduler_thread_function_jumping(NodeID cpu, std::vector<std::atomic<thread_frame *>> &thread_frames, char *data, size_t group_thread_id, size_t values_per_node,
+                                       size_t num_tree_nodes, std::atomic<size_t> &finished, TreeSimulationConfig config)
+{
+    pin_to_cpu(cpu);
+
+    auto num_total_coroutine_slots = config.coroutines * config.numa_nodes;
+    auto tf = new thread_frame{num_total_coroutine_slots};
+    thread_frames[group_thread_id] = tf;
+    SCHEDULER_THREAD_INFO.curr_group_node_id = group_thread_id;
+    SCHEDULER_THREAD_INFO.tfs = &thread_frames;
+
+    size_t num_finished = 0;
+    size_t num_scheduled = 0;
+    auto repetitions = config.num_lookups / config.num_threads;
+    auto tf_start_slot = config.coroutines * group_thread_id;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> uniform_dis_node_value(0, values_per_node - 1);
+    std::uniform_int_distribution<> uniform_dis_next_node(0, num_tree_nodes - 1);
+
+    while (true)
+    {
+        for (size_t i = 0; i < num_total_coroutine_slots; ++i)
+        {
+            SCHEDULER_THREAD_INFO.curr_coroutine_id = i;
+            if (tf_start_slot <= i && i < (tf_start_slot + config.coroutines))
+            {
+                switch (tf->running_coroutines[i])
+                {
+                case Empty:
+                case Finished: // empty, insert new
+                {
+                    if (num_scheduled == repetitions)
+                    {
+                        tf->running_coroutines[i] = Done;
+                        continue;
+                    }
+                    auto k = uniform_dis_node_value(gen);
+                    tf->coroutines[i] = new task(co_tree_traversal_jumping(config, data, k, values_per_node,
+                                                                           uniform_dis_next_node, gen));
+                    num_scheduled++;
+                    tf->coroutines[i].load()->coro.resume();
+                    tf->running_coroutines[i] = Resumable;
+                }
+                break;
+                case Resumable:
+                    if (!tf->coroutines[i].load()->coro.done())
+                    {
+                        tf->coroutines[i].load()->coro.resume();
+                    }
+                    else
+                    {
+                        delete tf->coroutines[i];
+                        tf->coroutines[i] = nullptr;
+                        tf->running_coroutines[i] = Finished;
+                        num_finished++;
+                        if (num_finished == repetitions)
+                        {
+                            finished++;
+                        }
+                        if (num_finished > repetitions)
+                        {
+                            throw std::runtime_error("Num_finished > repetitions.");
+                        }
+                    }
+                    break;
+                case Done:   // finished scheduling, ignore
+                case Remote: // Coroutine on other node, ignore
+                    break;
+                default:
+                    throw std::runtime_error("unknown state in running coroutines");
+                    break;
+                }
+            }
+            else
+            {
+                switch (tf->running_coroutines[i])
+                {
+                case Resumable:
+                    if (!tf->coroutines[i].load()->coro.done())
+                    {
+                        tf->coroutines[i].load()->coro.resume();
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Coroutine finished on a foreign node without clean up");
+                    }
+                    break;
+                case Empty:
+                    break;
+                default:
+                    throw std::runtime_error("Remote slot encountered invalid state " + std::to_string(tf->running_coroutines[i]));
+                    break;
                 }
             }
         }
@@ -275,6 +459,26 @@ void initialize_scheduler_groups(char *data, std::vector<NodeID> cpus, size_t va
         threads.emplace_back(scheduler_thread_function, cpus[i], std::ref(thread_frames), data, i, values_per_node, num_tree_nodes, std::ref(finished), config);
     }
     scheduler_thread_function(cpus[0], thread_frames, data, 0, values_per_node, num_tree_nodes, std::ref(finished), config); // this thread also works as a scheduler;
+    for (auto &t : threads)
+    {
+        t.join();
+    }
+}
+
+void initialize_scheduler_groups_jumping(char *data, std::vector<NodeID> cpus, size_t values_per_node, size_t num_tree_nodes, TreeSimulationConfig config)
+{
+    std::vector<std::jthread> threads;
+    std::vector<std::atomic<thread_frame *>> thread_frames(cpus.size());
+    for (int i = 0; i < cpus.size(); ++i)
+    {
+        thread_frames[i] = nullptr;
+    }
+    std::atomic<size_t> finished = 0;
+    for (int i = 1; i < cpus.size(); ++i)
+    {
+        threads.emplace_back(scheduler_thread_function_jumping, cpus[i], std::ref(thread_frames), data, i, values_per_node, num_tree_nodes, std::ref(finished), config);
+    }
+    scheduler_thread_function_jumping(cpus[0], thread_frames, data, 0, values_per_node, num_tree_nodes, std::ref(finished), config); // this thread also works as a scheduler;
     for (auto &t : threads)
     {
         t.join();
@@ -397,6 +601,24 @@ void benchmark_tree_simulation(TreeSimulationConfig &config)
     }
     end = std::chrono::high_resolution_clock::now();
     std::cout << "multithreaded coroutine lookup took: " << std::chrono::duration<double>(end - start).count() << " seconds" << std::endl;
+
+    start = std::chrono::high_resolution_clock::now();
+    threads.clear();
+    for (size_t t = 0; t < config.num_threads / config.numa_nodes; ++t) // We effectively schedule config.numa_nodes threads per run here.
+    {
+        std::vector<NodeID> cpus(config.numa_nodes, 0);
+        for (int i = 0; i < config.numa_nodes; ++i)
+        {
+            cpus[i] = node_2_cpus[i][t];
+        }
+        threads.emplace_back(initialize_scheduler_groups_jumping, data.data(), cpus, values_per_node, num_tree_nodes, config);
+    }
+    for (size_t t = 0; t < config.num_threads; ++t)
+    {
+        threads[t].join();
+    }
+    end = std::chrono::high_resolution_clock::now();
+    std::cout << "multithreaded coroutine with jumping lookup took: " << std::chrono::duration<double>(end - start).count() << " seconds" << std::endl;
 }
 
 int main(int argc, char **argv)
