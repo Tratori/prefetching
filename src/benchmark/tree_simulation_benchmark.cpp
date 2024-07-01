@@ -41,6 +41,10 @@ struct thread_frame // TODO: align this struct to Cache line
     thread_frame(size_t number_of_coroutines)
     {
         running_coroutines = new std::atomic<CoSlotState>[number_of_coroutines];
+        for (size_t i = 0; i < number_of_coroutines; i++)
+        {
+            running_coroutines[0] = Empty;
+        }
         coroutines = new std::atomic<task *>[number_of_coroutines];
     }
     ~thread_frame()
