@@ -38,12 +38,13 @@ void NumaManager::init_topology_info()
 
 void NumaManager::print_topology()
 {
+    auto allow_mem_nodes = numa_get_mems_allowed();
     std::cout << " --- NUMA Topology Information --- " << std::endl;
     std::cout << "number_cpus: " << number_cpus << std::endl;
     std::cout << "number_nodes: " << number_nodes << std::endl;
     for (NumaNode node = 0; node < number_nodes; node++)
     {
-        std::cout << "Node " << node << " ";
+        std::cout << "Node [" << node << "] (mem allowed=" << numa_bitmask_isbitset(allow_mem_nodes, node) << ") : ";
         for (auto cpu : node_to_cpus[node])
         {
             std::cout << cpu << " ";

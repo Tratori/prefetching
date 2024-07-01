@@ -20,7 +20,7 @@ InterleavingNumaMemoryResource::InterleavingNumaMemoryResource(NodeID num_numa_n
 // with: "mbind failed with -1 errno: Cannot allocate memory"
 NodeID InterleavingNumaMemoryResource::node_id(void *p)
 {
-    return (reinterpret_cast<uint64_t>(p) >> 20) % num_numa_nodes_;
+    return (reinterpret_cast<uint64_t>(p) >> 21) % num_numa_nodes_;
 }
 
 void InterleavingNumaMemoryResource::move_pages_policed(void *p, size_t size)
