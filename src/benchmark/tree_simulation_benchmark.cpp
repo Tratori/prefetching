@@ -237,7 +237,6 @@ task co_tree_traversal_jumping(TreeSimulationConfig &config, char *data, uint32_
         local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Empty;
         auto const &starting_tf = tfs[starting_node].load();
         starting_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Resumable;
-        co_await std::suspend_always{};
     }
     co_return;
 }
@@ -454,6 +453,12 @@ void scheduler_thread_function_jumping(NodeID cpu, std::vector<std::atomic<threa
                     }
                     else
                     {
+                        for (size_t g = 0; g < thread_frames.size(); g++)
+                        {
+                            std::cout << "state on " << g << ":" << thread_frames[g].load()->running_coroutines[i] << std::endl;
+                        }
+                        std::cout << "this node:" << group_thread_id << std::endl
+                                  << std::flush;
                         throw std::runtime_error("Coroutine finished on a foreign node without clean up");
                     }
                     break;
