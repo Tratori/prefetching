@@ -488,13 +488,9 @@ void scheduler_thread_function_jumping(NodeID cpu, std::vector<std::atomic<threa
                     }
                     else
                     {
-                        for (size_t g = 0; g < thread_frames.size(); g++)
-                        {
-                            std::cout << "state on " << g << ":" << thread_frames[g].load()->running_coroutines[i].load() << std::endl;
-                        }
-                        std::cout << "this node:" << group_thread_id << std::endl
-                                  << std::flush;
-                        throw std::runtime_error("Coroutine finished on a foreign node without clean up");
+                        size_t original_node = i / config.coroutines;
+                        tf->running_coroutines[i] = Empty;
+                        thread_frames[original_node].load()->running_coroutines[i] = Resumable;
                     }
                     break;
                 case Empty:
