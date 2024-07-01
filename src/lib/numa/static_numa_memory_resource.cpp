@@ -24,10 +24,11 @@ void StaticNumaMemoryResource::move_pages_policed(void *p, size_t size)
     {
         return;
     }
-    auto bitmask = numa_bitmask_alloc(numa_num_configured_cpus());
+    auto bitmask = numa_bitmask_alloc(max_node);
+    numa_bitmask_clearall(bitmask);
     const auto target_node_id = node_id(p);
     numa_bitmask_setbit(bitmask, target_node_id);
-    auto ret = mbind(reinterpret_cast<char *>(p), size, MPOL_BIND, bitmask->maskp, max_node, 0);
+    auto ret = mbind(reinterpret_cast<char *>(p), size, MPOL_BIND, bitmask->maskp, bitmask->size + 1, 0);
     if (ret != 0)
     {
         throw std::runtime_error("mbind failed with " + std::to_string(ret) + " errno: " + strerror(errno));

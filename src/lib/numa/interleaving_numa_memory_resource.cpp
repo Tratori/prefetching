@@ -10,6 +10,8 @@
 
 #include "interleaving_numa_memory_resource.hpp"
 
+const auto PAGE_SIZE = get_page_size();
+
 InterleavingNumaMemoryResource::InterleavingNumaMemoryResource(NodeID num_numa_nodes) : num_numa_nodes_(num_numa_nodes){};
 
 // There is a limit to the number of memory areas a process can have (cat /proc/sys/vm/max_map_count)
@@ -31,20 +33,20 @@ void InterleavingNumaMemoryResource::move_pages_policed(void *p, size_t size)
     {
         return;
     }
-    const auto PAGE_SIZE = get_page_size();
-    unsigned long num_pages = calculate_allocated_pages(size);
-    auto bitmask = numa_bitmask_alloc(numa_num_configured_cpus());
+    auto bitmask = numa_bitmask_alloc(max_node + 1);
+    numa_bitmask_clearall(bitmask);
 
     size_t curr_size = PAGE_SIZE;
     char *last_start = reinterpret_cast<char *>(p);
     NodeID curr_node_id = node_id(reinterpret_cast<char *>(p));
+    unsigned long num_pages = calculate_allocated_pages(size);
     for (int i = 1; i < num_pages; ++i)
     {
         const auto target_node_id = node_id(reinterpret_cast<char *>(p) + (i * PAGE_SIZE));
         if (target_node_id != curr_node_id)
         {
             numa_bitmask_setbit(bitmask, curr_node_id);
-            auto ret = mbind(last_start, curr_size, MPOL_BIND, bitmask->maskp, max_node, 0);
+            auto ret = mbind(last_start, curr_size, MPOL_BIND, bitmask->maskp, bitmask->size + 1, 0);
             if (ret != 0)
             {
                 throw std::runtime_error("mbind failed with " + std::to_string(ret) + " errno: " + strerror(errno));
@@ -62,7 +64,7 @@ void InterleavingNumaMemoryResource::move_pages_policed(void *p, size_t size)
     }
 
     numa_bitmask_setbit(bitmask, curr_node_id);
-    auto ret = mbind(last_start, curr_size, MPOL_BIND, bitmask->maskp, max_node, 0);
+    auto ret = mbind(last_start, curr_size, MPOL_BIND, bitmask->maskp, bitmask->size + 1, 0);
     if (ret != 0)
     {
         throw std::runtime_error("mbind failed with " + std::to_string(ret) + " errno: " + strerror(errno));
