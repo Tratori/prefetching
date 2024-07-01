@@ -232,7 +232,7 @@ task co_tree_traversal_jumping(TreeSimulationConfig &config, char *data, uint32_
         auto const &local_tf = tfs[curr_node_id].load();
         local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Empty;
         auto const &starting_tf = tfs[starting_node].load();
-        local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Resumable;
+        starting_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Resumable;
         co_await std::suspend_always{};
     }
     co_return;
