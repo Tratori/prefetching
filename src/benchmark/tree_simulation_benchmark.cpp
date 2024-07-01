@@ -183,7 +183,6 @@ task co_tree_traversal(TreeSimulationConfig &config, char *data, uint32_t k, uin
     co_return;
 }
 
-template <typename handle>
 auto jump_to_other_node(size_t curr_node_id, size_t target_node_id, size_t starting_node)
 {
     struct awaitable
@@ -192,25 +191,9 @@ auto jump_to_other_node(size_t curr_node_id, size_t target_node_id, size_t start
         size_t target_node_id;
         size_t starting_node;
         bool await_ready() { return false; }
-        void await_suspend(handle h)
+        void await_suspend(task h)
         {
-            auto &tfs = *(SCHEDULER_THREAD_INFO.tfs);
-            auto const &local_tf = tfs[curr_node_id].load();
-            if (curr_node_id == starting_node)
-            {
-                local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Remote;
-            }
-            else
-            {
-                local_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Empty;
-            }
-            //  insert into remote scheduler
-            while (tfs[target_node_id].load() == nullptr)
-            { // remote scheduler not yet initialized
-            }
-            auto const &remote_tf = tfs[target_node_id].load();
-            remote_tf->coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = local_tf->coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id].load();
-            remote_tf->running_coroutines[SCHEDULER_THREAD_INFO.curr_coroutine_id] = Resumable;
+            h.next_node = target_node_id;
         }
         void await_resume() {}
     };
@@ -257,7 +240,7 @@ task co_tree_traversal_jumping(TreeSimulationConfig &config, char *data, uint32_
         auto const curr_node_id = SCHEDULER_THREAD_INFO.curr_group_node_id;
         if (target_node != curr_node_id)
         {
-            co_await jump_to_other_node<task>(curr_node_id, target_node, starting_node);
+            co_await jump_to_other_node(curr_node_id, target_node, starting_node);
         }
         // handling complete
         uint32_t found;
@@ -312,8 +295,8 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
                     auto k = uniform_dis_node_value(gen);
                     tf->coroutines[i] = new task(co_tree_traversal(config, data, k, values_per_node,
                                                                    uniform_dis_next_node, gen));
+                    tf->coroutines[i].load()->next_node = group_thread_id;
                     num_scheduled++;
-                    tf->coroutines[i].load()->coro.resume();
                     tf->running_coroutines[i] = Resumable;
                 }
                 break;
@@ -321,6 +304,13 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
                     if (!tf->coroutines[i].load()->coro.done())
                     {
                         tf->coroutines[i].load()->coro.resume();
+                        if (tf->coroutines[i].load()->next_node != group_thread_id)
+                        {
+                            tf->running_coroutines[i] = Remote;
+                            thread_frames[tf->coroutines[i].load()->next_node].load()->coroutines[i] = tf->coroutines[i].load();
+                            _mm_sfence();
+                            thread_frames[tf->coroutines[i].load()->next_node].load()->running_coroutines[i] = Resumable;
+                        }
                     }
                     else
                     {
@@ -354,11 +344,19 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
                     if (!tf->coroutines[i].load()->coro.done())
                     {
                         tf->coroutines[i].load()->coro.resume();
+                        if (tf->coroutines[i].load()->next_node != group_thread_id)
+                        {
+                            tf->running_coroutines[i] = Empty;
+                            thread_frames[tf->coroutines[i].load()->next_node].load()->coroutines[i] = tf->coroutines[i].load();
+                            _mm_sfence();
+                            thread_frames[tf->coroutines[i].load()->next_node].load()->running_coroutines[i] = Resumable;
+                        }
                     }
                     else
                     {
                         size_t original_node = i / config.coroutines;
                         tf->running_coroutines[i] = Empty;
+                        _mm_sfence();
                         thread_frames[original_node].load()->running_coroutines[i] = Resumable;
                     }
                     break;
@@ -395,7 +393,6 @@ void scheduler_thread_function_jumping(NodeID cpu, std::vector<std::atomic<threa
     size_t num_scheduled = 0;
     auto repetitions = config.num_lookups / config.num_threads;
     auto tf_start_slot = config.coroutines * group_thread_id;
-
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> uniform_dis_node_value(0, values_per_node - 1);
@@ -447,34 +444,34 @@ void scheduler_thread_function_jumping(NodeID cpu, std::vector<std::atomic<threa
                             last_resumable = g;
                         }
                     }
-                }
+                };
 
-                        if (!tf->coroutines[i].load()->coro.done())
+                    if (!tf->coroutines[i].load()->coro.done())
+                    {
+                        tf->coroutines[i].load()->coro.resume();
+                    }
+                    else
+                    {
+                        delete tf->coroutines[i];
+                        tf->coroutines[i] = nullptr;
+                        tf->running_coroutines[i] = Finished;
+                        num_finished++;
+                        if (num_finished == repetitions)
                         {
-                            tf->coroutines[i].load()->coro.resume();
+                            finished++;
                         }
-                        else
+                        if (num_finished > repetitions)
                         {
-                            delete tf->coroutines[i];
-                            tf->coroutines[i] = nullptr;
-                            tf->running_coroutines[i] = Finished;
-                            num_finished++;
-                            if (num_finished == repetitions)
-                            {
-                                finished++;
-                            }
-                            if (num_finished > repetitions)
-                            {
-                                throw std::runtime_error("Num_finished > repetitions.");
-                            }
+                            throw std::runtime_error("Num_finished > repetitions.");
                         }
-                        break;
-                    case Done:   // finished scheduling, ignore
-                    case Remote: // Coroutine on other node, ignore
-                        break;
-                    default:
-                        throw std::runtime_error("unknown state in running coroutines");
-                        break;
+                    }
+                    break;
+                case Done:   // finished scheduling, ignore
+                case Remote: // Coroutine on other node, ignore
+                    break;
+                default:
+                    throw std::runtime_error("unknown state in running coroutines");
+                    break;
                 }
             }
             else

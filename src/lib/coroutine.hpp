@@ -31,6 +31,7 @@ struct task
     };
     std::coroutine_handle<promise_type> coro;
     bool empty = false;
+    uint16_t next_node = 0;
     task(std::coroutine_handle<promise_type> h) : coro(h) {}
     task()
     {
