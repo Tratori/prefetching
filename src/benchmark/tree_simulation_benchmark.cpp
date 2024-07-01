@@ -455,7 +455,7 @@ void scheduler_thread_function_jumping(NodeID cpu, std::vector<std::atomic<threa
                     {
                         for (size_t g = 0; g < thread_frames.size(); g++)
                         {
-                            std::cout << "state on " << g << ":" << thread_frames[g].load()->running_coroutines[i] << std::endl;
+                            std::cout << "state on " << g << ":" << thread_frames[g].load()->running_coroutines[i].load() << std::endl;
                         }
                         std::cout << "this node:" << group_thread_id << std::endl
                                   << std::flush;
