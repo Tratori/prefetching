@@ -405,26 +405,6 @@ void scheduler_thread_function_jumping(NodeID cpu, std::vector<std::atomic<threa
     {
         for (size_t i = 0; i < num_total_coroutine_slots; ++i)
         {
-            bool resumable_found = false;
-            size_t last_resumable = 0;
-            for (size_t g = 0; g < thread_frames.size(); g++)
-            {
-                while (thread_frames[g] == nullptr)
-                {
-                }; // wait for all threads to be up and running
-                if (thread_frames[g].load()->running_coroutines[i] == Resumable)
-                {
-                    if (resumable_found)
-                    {
-                        if (thread_frames[last_resumable].load()->running_coroutines[i] == Resumable)
-                        {
-                            throw std::runtime_error("Coroutine Resumable on multiple threads");
-                        }
-                    }
-                    resumable_found = true;
-                    last_resumable = g;
-                }
-            }
             SCHEDULER_THREAD_INFO.curr_coroutine_id = i;
             if (tf_start_slot <= i && i < (tf_start_slot + config.coroutines))
             {
@@ -446,6 +426,26 @@ void scheduler_thread_function_jumping(NodeID cpu, std::vector<std::atomic<threa
                 }
                 break;
                 case Resumable:
+                    bool resumable_found = false;
+                    size_t last_resumable = 0;
+                    for (size_t g = 0; g < thread_frames.size(); g++)
+                    {
+                        while (thread_frames[g] == nullptr)
+                        {
+                        }; // wait for all threads to be up and running
+                        if (thread_frames[g].load()->running_coroutines[i] == Resumable)
+                        {
+                            if (resumable_found)
+                            {
+                                if (thread_frames[last_resumable].load()->running_coroutines[i] == Resumable)
+                                {
+                                    throw std::runtime_error("Coroutine Resumable on multiple threads");
+                                }
+                            }
+                            resumable_found = true;
+                            last_resumable = g;
+                        }
+                    }
                     if (!tf->coroutines[i].load()->coro.done())
                     {
                         tf->coroutines[i].load()->coro.resume();
