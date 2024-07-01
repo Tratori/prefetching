@@ -268,8 +268,6 @@ task co_tree_traversal_jumping(TreeSimulationConfig &config, char *data, uint32_
     {
         "lookups failed " + std::to_string(sum) + " vs. " + std::to_string(config.num_node_traversal_per_lookup * k);
     }
-    // gracefully exit
-    co_await handle_exit<task>(SCHEDULER_THREAD_INFO.curr_group_node_id, starting_node);
     co_return;
 }
 
@@ -359,7 +357,9 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
                     }
                     else
                     {
-                        throw std::runtime_error("Coroutine finished on a foreign node without clean up");
+                        size_t original_node = i / config.coroutines;
+                        tf->running_coroutines[i] = Empty;
+                        thread_frames[original_node].load()->running_coroutines[i] = Resumable;
                     }
                     break;
                 case Empty:
