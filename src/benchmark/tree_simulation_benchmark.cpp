@@ -562,9 +562,9 @@ void benchmark_tree_simulation(TreeSimulationConfig &config)
                                       }
                                   } });
     }
-    for (size_t t = 0; t < config.num_threads; ++t)
+    for (auto &t : threads)
     {
-        threads[t].join();
+        t.join();
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "multithreaded lookup took: " << std::chrono::duration<double>(end - start).count() << " seconds" << std::endl;
@@ -576,9 +576,9 @@ void benchmark_tree_simulation(TreeSimulationConfig &config)
         threads.emplace_back(tree_simulation_coroutine, config, config.num_lookups / config.num_threads, values_per_node,
                              num_tree_nodes, data.data());
     }
-    for (size_t t = 0; t < config.num_threads; ++t)
+    for (auto &t : threads)
     {
-        threads[t].join();
+        t.join();
     }
     end = std::chrono::high_resolution_clock::now();
     std::cout << "multithreaded coroutine lookup took: " << std::chrono::duration<double>(end - start).count() << " seconds" << std::endl;
@@ -595,9 +595,9 @@ void benchmark_tree_simulation(TreeSimulationConfig &config)
         }
         threads.emplace_back(initialize_scheduler_groups, data.data(), cpus, values_per_node, num_tree_nodes, config);
     }
-    for (size_t t = 0; t < config.num_threads; ++t)
+    for (auto &t : threads)
     {
-        threads[t].join();
+        t.join();
     }
     end = std::chrono::high_resolution_clock::now();
     std::cout << "multithreaded coroutine lookup took: " << std::chrono::duration<double>(end - start).count() << " seconds" << std::endl;
@@ -613,9 +613,9 @@ void benchmark_tree_simulation(TreeSimulationConfig &config)
         }
         threads.emplace_back(initialize_scheduler_groups_jumping, data.data(), cpus, values_per_node, num_tree_nodes, config);
     }
-    for (size_t t = 0; t < config.num_threads; ++t)
+    for (auto &t : threads)
     {
-        threads[t].join();
+        t.join();
     }
     end = std::chrono::high_resolution_clock::now();
     std::cout << "multithreaded coroutine with jumping lookup took: " << std::chrono::duration<double>(end - start).count() << " seconds" << std::endl;
