@@ -30,9 +30,12 @@ void NumaManager::init_topology_info()
     node_to_cpus.resize(number_nodes);
     for (NumaCPU numa_cpu = 0; numa_cpu < number_cpus; ++numa_cpu)
     {
-        NumaNode numa_node = numa_node_of_cpu(numa_cpu);
-        cpu_to_node.push_back(numa_node);
-        node_to_cpus[numa_node].push_back(numa_cpu);
+        if (numa_bitmask_isbitset(numa_all_cpus_ptr, numa_cpu))
+        {
+            NumaNode numa_node = numa_node_of_cpu(numa_cpu);
+            cpu_to_node.push_back(numa_node);
+            node_to_cpus[numa_node].push_back(numa_cpu);
+        }
     }
 }
 
