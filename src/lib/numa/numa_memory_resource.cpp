@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <sstream>
+#include <iostream>
 #include <errno.h>
 
 #include <boost/container/pmr/memory_resource.hpp>
@@ -46,6 +47,7 @@ NumaMemoryResource::NumaMemoryResource(bool use_huge_pages) : _use_huge_pages(us
     // Set the custom hook
     extentHooks_ = *hooks;
     extentHooks_.alloc = &alloc;
+    extentHooks_.dalloc = &dalloc;
     extent_hooks_t *new_hooks = &extentHooks_;
     if (auto ret = mallctl(
             hooks_key.str().c_str(),
@@ -98,13 +100,38 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
     }
 
     void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, mmap_flags, -1, 0);
-    if (addr == nullptr)
+    if (addr == nullptr || addr == MAP_FAILED)
     {
-        throw std::runtime_error("Failed to mmap pages.");
+        throw std::runtime_error("Failed to mmap pages. errno: " + std::to_string(errno) + " err: " + std::string{strerror(errno)});
     }
     unsigned long num_pages = calculate_allocated_pages(size);
 
     memory_resource->move_pages_policed(addr, size);
 
     return addr;
+}
+
+size_t align_to_huge_page_size(size_t size)
+{
+    return (size + HUGE_PAGE_SIZE - 1) & ~(HUGE_PAGE_SIZE - 1);
+}
+
+bool NumaMemoryResource::dalloc(extent_hooks_t *extent_hooks, void *addr, size_t size, bool committed, unsigned arena_ind)
+{
+
+    if (arena_to_resource_map[arena_ind]->_use_huge_pages)
+    {
+        size = align_to_huge_page_size(size);
+    }
+
+    auto ret = munmap(addr, size);
+    if (ret == -1)
+    {
+        std::cerr << "munmap failed: " << strerror(errno) << std::endl;
+        return false;
+    }
+    else
+    {
+        return true;
+    }
 }

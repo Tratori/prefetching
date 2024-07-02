@@ -13,6 +13,7 @@ inline std::size_t get_page_size()
 {
     return static_cast<std::size_t>(sysconf(_SC_PAGESIZE));
 }
+constexpr size_t HUGE_PAGE_SIZE = 2 * 1024 * 1024;
 std::size_t calculate_allocated_pages(size_t size);
 
 /**
@@ -44,6 +45,8 @@ public:
 
     static void *alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment, bool *zero,
                        bool *commit, unsigned arena_index);
+
+    static bool dalloc(extent_hooks_t *extent_hooks, void *addr, size_t size, bool committed, unsigned arena_ind);
 
 protected:
     extent_hooks_t extentHooks_;
