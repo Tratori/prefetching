@@ -24,7 +24,7 @@ std::size_t calculate_allocated_pages(size_t size)
     return (size + PAGE_SIZE - 1) / PAGE_SIZE;
 }
 
-NumaMemoryResource::NumaMemoryResource()
+NumaMemoryResource::NumaMemoryResource(bool use_huge_pages) : _use_huge_pages(use_huge_pages)
 {
     auto arena_id = uint32_t{0};
     auto size = sizeof(arena_id);
@@ -87,18 +87,22 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
 {
     // map return addresses aligned to page size
 #ifdef USE_MBIND
-    const auto mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS;
+    auto mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS;
 #else
-    const auto mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE;
+    auto mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE;
 #endif
+    auto memory_resource = arena_to_resource_map[arena_index];
+    if (memory_resource->_use_huge_pages)
+    {
+        mmap_flags |= MAP_HUGETLB;
+    }
+
     void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, mmap_flags, -1, 0);
     if (addr == nullptr)
     {
         throw std::runtime_error("Failed to mmap pages.");
     }
     unsigned long num_pages = calculate_allocated_pages(size);
-
-    auto memory_resource = arena_to_resource_map[arena_index];
 
     memory_resource->move_pages_policed(addr, size);
 

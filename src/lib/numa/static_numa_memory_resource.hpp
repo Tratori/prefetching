@@ -12,7 +12,7 @@ class StaticNumaMemoryResource : public NumaMemoryResource
 {
 public:
     // Constructor creating an arena for a specific node.
-    explicit StaticNumaMemoryResource(NodeID target_numa_node);
+    explicit StaticNumaMemoryResource(NodeID target_numa_node, bool use_huge_pages = false);
 
     NodeID node_id(void *p);
     void move_pages_policed(void *p, size_t size);

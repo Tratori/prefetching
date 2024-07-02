@@ -12,7 +12,7 @@
 
 const auto PAGE_SIZE = get_page_size();
 
-InterleavingNumaMemoryResource::InterleavingNumaMemoryResource(NodeID num_numa_nodes) : num_numa_nodes_(num_numa_nodes){};
+InterleavingNumaMemoryResource::InterleavingNumaMemoryResource(NodeID num_numa_nodes, bool use_huge_pages) : num_numa_nodes_(num_numa_nodes), NumaMemoryResource(use_huge_pages){};
 
 // There is a limit to the number of memory areas a process can have (cat /proc/sys/vm/max_map_count)
 // which defaults to 65536. If we were to interleave at page granularity, we create a new memory area,

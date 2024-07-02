@@ -27,7 +27,7 @@ class NumaMemoryResource : public std::pmr::memory_resource
 {
 public:
     // Constructor creating an arena for a specific node.
-    explicit NumaMemoryResource();
+    explicit NumaMemoryResource(bool use_huge_pages = false);
 
     // Methods defined by memory_resource.
     void *do_allocate(std::size_t bytes, std::size_t alignment) override;
@@ -47,5 +47,6 @@ public:
 
 protected:
     extent_hooks_t extentHooks_;
+    bool _use_huge_pages;
     int32_t _allocation_flags{0};
 };
