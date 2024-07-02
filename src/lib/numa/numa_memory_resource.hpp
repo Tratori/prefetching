@@ -7,7 +7,7 @@
 // #include <boost/container/pmr/memory_resource.hpp>
 #include <jemalloc/jemalloc.h>
 
-using NodeID = u_int16_t;
+#include "../types.hpp"
 
 inline std::size_t get_page_size()
 {

@@ -4,17 +4,15 @@
 #include <optional>
 
 #include "interleaving_numa_memory_resource.hpp"
-
-using NumaNode = int;
-using NumaCPU = int;
+#include "../types.hpp"
 
 class NumaManager
 {
 public:
-    NumaCPU number_cpus;
-    NumaNode number_nodes;
-    std::vector<std::vector<NumaCPU>> node_to_cpus;
-    std::vector<NumaNode> cpu_to_node;
+    NodeID number_cpus;
+    NodeID number_nodes;
+    std::vector<std::vector<NodeID>> node_to_cpus;
+    std::vector<NodeID> cpu_to_node;
     std::optional<InterleavingNumaMemoryResource> interleaving_memory_resource;
     NumaManager();
 

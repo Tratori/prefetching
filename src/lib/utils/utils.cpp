@@ -2,8 +2,10 @@
 #include <x86intrin.h>
 #include <vector>
 #include <iostream>
+#include <thread>
 
 #include "profiler.cpp"
+#include "../types.hpp"
 
 const uint64_t l1_prefetch_latency = 44;
 
@@ -81,5 +83,17 @@ public:
         T &state = buffer[next_index];
         next_index = (next_index + 1) % capacity;
         return state;
+    }
+};
+
+void pin_to_cpu(NodeID cpu)
+{
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(cpu, &cpuset);
+    const auto return_code = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+    if (return_code != 0)
+    {
+        throw std::runtime_error("pinning thread to cpu failed (return code: " + std::to_string(return_code) + ").");
     }
 };

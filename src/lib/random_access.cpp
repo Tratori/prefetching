@@ -5,6 +5,7 @@
 #include "random_access.hpp"
 #include "coroutine.hpp"
 #include "utils.cpp"
+#include "types.hpp"
 
 /*
     As there are no computations between the data accesses, we can no longer

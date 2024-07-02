@@ -62,18 +62,6 @@ struct scheduler_thread_info
 };
 thread_local scheduler_thread_info SCHEDULER_THREAD_INFO;
 
-void pin_to_cpu(NodeID cpu)
-{
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(cpu, &cpuset);
-    const auto return_code = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
-    if (return_code != 0)
-    {
-        throw std::runtime_error("pinning thread to cpu failed (return code: " + std::to_string(return_code) + ").");
-    }
-}
-
 template <typename handle>
 auto jump_between_threads(std::vector<thread_frame *> &thread_frames, NodeID from, NodeID to, int coroutine_id)
 {

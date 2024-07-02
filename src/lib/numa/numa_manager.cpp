@@ -28,11 +28,11 @@ void NumaManager::init_topology_info()
     number_nodes = numa_num_task_nodes();
     cpu_to_node.reserve(number_cpus);
     node_to_cpus.resize(number_nodes);
-    for (NumaCPU numa_cpu = 0; numa_cpu < number_cpus; ++numa_cpu)
+    for (NodeID numa_cpu = 0; numa_cpu < number_cpus; ++numa_cpu)
     {
         if (numa_bitmask_isbitset(numa_all_cpus_ptr, numa_cpu))
         {
-            NumaNode numa_node = numa_node_of_cpu(numa_cpu);
+            NodeID numa_node = numa_node_of_cpu(numa_cpu);
             cpu_to_node.push_back(numa_node);
             node_to_cpus[numa_node].push_back(numa_cpu);
         }
@@ -45,7 +45,7 @@ void NumaManager::print_topology()
     std::cout << " --- NUMA Topology Information --- " << std::endl;
     std::cout << "number_cpus: " << number_cpus << "/" << numa_num_configured_cpus() << std::endl;
     std::cout << "number_nodes: " << number_nodes << "/" << numa_num_configured_nodes() << std::endl;
-    for (NumaNode node = 0; node < number_nodes; node++)
+    for (NodeID node = 0; node < number_nodes; node++)
     {
         std::cout << "Node [" << node << "] (mem allowed=" << numa_bitmask_isbitset(allow_mem_nodes, node) << ") : ";
         for (auto cpu : node_to_cpus[node])
