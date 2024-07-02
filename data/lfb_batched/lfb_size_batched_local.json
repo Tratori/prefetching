@@ -1,0 +1,147 @@
+{
+    "results": [
+        {
+            "config": {
+                "batch_size": 1,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.696240197
+        },
+        {
+            "config": {
+                "batch_size": 2,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.469926677
+        },
+        {
+            "config": {
+                "batch_size": 4,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.314900391
+        },
+        {
+            "config": {
+                "batch_size": 8,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.173109604
+        },
+        {
+            "config": {
+                "batch_size": 12,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.136513453
+        },
+        {
+            "config": {
+                "batch_size": 16,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.110959109
+        },
+        {
+            "config": {
+                "batch_size": 20,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.09654121
+        },
+        {
+            "config": {
+                "batch_size": 24,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.086924428
+        },
+        {
+            "config": {
+                "batch_size": 28,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.080693688
+        },
+        {
+            "config": {
+                "batch_size": 32,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.078929022
+        },
+        {
+            "config": {
+                "batch_size": 26,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.08340145
+        },
+        {
+            "config": {
+                "batch_size": 40,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.076278568
+        },
+        {
+            "config": {
+                "batch_size": 44,
+                "num_repetitions": 10000000,
+                "num_threads": 1,
+                "prefetch_distance": 10,
+                "total_memory": 2048,
+                "use_huge_pages": false
+            },
+            "runtime": 0.073750264
+        }
+    ]
+}
