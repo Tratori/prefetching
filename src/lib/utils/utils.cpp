@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <x86intrin.h>
 #include <vector>
+#include <random>
 #include <iostream>
 #include <thread>
 
@@ -97,3 +98,25 @@ void pin_to_cpu(NodeID cpu)
         throw std::runtime_error("pinning thread to cpu failed (return code: " + std::to_string(return_code) + ").");
     }
 };
+
+void initialize_pointer_chase(uint64_t *data, size_t size)
+{
+    std::vector<size_t> random_numbers(size);
+
+    std::iota(random_numbers.begin(), random_numbers.end(), 0);
+    auto rng = std::mt19937{42};
+    std::shuffle(random_numbers.begin(), random_numbers.end(), rng);
+
+    auto zero_it = std::find(random_numbers.begin(), random_numbers.end(), 0);
+    unsigned curr = 0;
+    for (auto behind_zero = zero_it + 1; behind_zero < random_numbers.end(); behind_zero++)
+    {
+        *(data + curr) = *behind_zero;
+        curr = *behind_zero;
+    }
+    for (auto before_zero = random_numbers.begin(); before_zero <= zero_it; before_zero++)
+    {
+        *(data + curr) = *before_zero;
+        curr = *before_zero;
+    }
+}

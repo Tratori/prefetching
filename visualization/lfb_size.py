@@ -69,6 +69,29 @@ def plot_batched():
     plt.show()
 
 
+def plot_pc():
+    for id in ids:
+        lfb_bench = import_benchmark(os.path.join("pc_benchmark", "pc_local.json"))
+        results = lfb_bench["results"]
+        results = sorted(
+            results, key=lambda result: result["config"]["num_parallel_pc"]
+        )
+        num_parallel_pc = [result["config"]["num_parallel_pc"] for result in results]
+        runtime = [result["runtime"] for result in results]
+        min_time = min(runtime)
+        # runtime = [
+        #    (p[0] - min_time) / p[1] + min_time for p in zip(runtime, num_parallel_pc)
+        # ]
+
+        sns.pointplot(x=num_parallel_pc, y=runtime, label=id)
+    plt.title("LFB Size Benchmark - Pointer Chasing")
+    plt.xlabel("Parallel Pointer Chases")
+    plt.ylabel("Runtime (s)")
+    # plt.yscale("log")
+    plt.show()
+
+
 if __name__ == "__main__":
+    plot_pc()
     plot_interleaved()
     plot_batched()

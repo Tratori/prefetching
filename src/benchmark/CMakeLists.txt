@@ -23,3 +23,7 @@ target_link_libraries(tree_simulation prefetching)
 add_executable(lfb_size lfb_size_benchmark.cpp)
 
 target_link_libraries(lfb_size prefetching)
+
+add_executable(pc pointer_chasing.cpp)
+
+target_link_libraries(pc prefetching)
