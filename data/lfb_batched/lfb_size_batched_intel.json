@@ -9,7 +9,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.818076175
+            "runtime": 0.323523953
         },
         {
             "config": {
@@ -20,7 +20,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.510436495
+            "runtime": 0.200828797
         },
         {
             "config": {
@@ -31,7 +31,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.381166766
+            "runtime": 0.153954516
         },
         {
             "config": {
@@ -42,7 +42,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.304812044
+            "runtime": 0.127273926
         },
         {
             "config": {
@@ -53,7 +53,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.257828802
+            "runtime": 0.114516471
         },
         {
             "config": {
@@ -64,7 +64,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.223209406
+            "runtime": 0.111932191
         },
         {
             "config": {
@@ -75,7 +75,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.202647154
+            "runtime": 0.103759728
         },
         {
             "config": {
@@ -86,7 +86,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.185655169
+            "runtime": 0.097962762
         },
         {
             "config": {
@@ -97,7 +97,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.167229122
+            "runtime": 0.096982424
         },
         {
             "config": {
@@ -108,7 +108,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.157728693
+            "runtime": 0.092323667
         },
         {
             "config": {
@@ -119,7 +119,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.141838383
+            "runtime": 0.09229473
         },
         {
             "config": {
@@ -130,7 +130,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.141271886
+            "runtime": 0.091293857
         },
         {
             "config": {
@@ -141,7 +141,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.133467151
+            "runtime": 0.085517713
         },
         {
             "config": {
@@ -152,7 +152,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.124370311
+            "runtime": 0.084105967
         },
         {
             "config": {
@@ -163,7 +163,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.118205366
+            "runtime": 0.080336938
         },
         {
             "config": {
@@ -174,7 +174,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.112802586
+            "runtime": 0.07685411
         },
         {
             "config": {
@@ -185,7 +185,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.109878597
+            "runtime": 0.078528183
         },
         {
             "config": {
@@ -196,7 +196,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.106019998
+            "runtime": 0.079316622
         },
         {
             "config": {
@@ -207,7 +207,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.122210794
+            "runtime": 0.081356021
         },
         {
             "config": {
@@ -218,7 +218,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.099129936
+            "runtime": 0.082141632
         },
         {
             "config": {
@@ -229,7 +229,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.098183934
+            "runtime": 0.083794457
         },
         {
             "config": {
@@ -240,7 +240,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.092722454
+            "runtime": 0.08560274
         },
         {
             "config": {
@@ -251,7 +251,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.094659824
+            "runtime": 0.084460801
         },
         {
             "config": {
@@ -262,7 +262,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.089360209
+            "runtime": 0.089855742
         },
         {
             "config": {
@@ -273,7 +273,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.088346109
+            "runtime": 0.084481101
         },
         {
             "config": {
@@ -284,7 +284,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.087626903
+            "runtime": 0.084241958
         },
         {
             "config": {
@@ -295,7 +295,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.089080773
+            "runtime": 0.081789536
         },
         {
             "config": {
@@ -306,7 +306,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.091068258
+            "runtime": 0.082357762
         },
         {
             "config": {
@@ -317,7 +317,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.088165789
+            "runtime": 0.077247107
         },
         {
             "config": {
@@ -328,7 +328,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.083954435
+            "runtime": 0.077872245
         },
         {
             "config": {
@@ -339,7 +339,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.083104052
+            "runtime": 0.075089864
         },
         {
             "config": {
@@ -350,7 +350,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.08162724
+            "runtime": 0.078403634
         },
         {
             "config": {
@@ -361,7 +361,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.077207352
+            "runtime": 0.072565548
         },
         {
             "config": {
@@ -372,7 +372,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.080593102
+            "runtime": 0.072693546
         },
         {
             "config": {
@@ -383,7 +383,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.079768428
+            "runtime": 0.070805918
         },
         {
             "config": {
@@ -394,7 +394,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.080011135
+            "runtime": 0.06998252
         },
         {
             "config": {
@@ -405,7 +405,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.079415443
+            "runtime": 0.068290489
         },
         {
             "config": {
@@ -416,7 +416,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.078356538
+            "runtime": 0.068504967
         },
         {
             "config": {
@@ -427,7 +427,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.110739012
+            "runtime": 0.066836991
         },
         {
             "config": {
@@ -438,7 +438,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.077494223
+            "runtime": 0.068117016
         },
         {
             "config": {
@@ -449,7 +449,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.076534135
+            "runtime": 0.065424198
         },
         {
             "config": {
@@ -460,7 +460,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.077111101
+            "runtime": 0.070693794
         },
         {
             "config": {
@@ -471,7 +471,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.079353377
+            "runtime": 0.065870097
         },
         {
             "config": {
@@ -482,7 +482,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.077635029
+            "runtime": 0.064281627
         },
         {
             "config": {
@@ -493,7 +493,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.075159044
+            "runtime": 0.063424298
         },
         {
             "config": {
@@ -504,7 +504,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.082164654
+            "runtime": 0.062716911
         },
         {
             "config": {
@@ -515,7 +515,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.074307951
+            "runtime": 0.062095831
         },
         {
             "config": {
@@ -526,7 +526,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.075697519
+            "runtime": 0.062419937
         },
         {
             "config": {
@@ -537,7 +537,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.075247611
+            "runtime": 0.060650595
         },
         {
             "config": {
@@ -548,7 +548,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.076382019
+            "runtime": 0.060885244
         },
         {
             "config": {
@@ -559,7 +559,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.154007471
+            "runtime": 0.060870135
         },
         {
             "config": {
@@ -570,7 +570,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.077834746
+            "runtime": 0.060203818
         },
         {
             "config": {
@@ -581,7 +581,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.073266789
+            "runtime": 0.059770295
         },
         {
             "config": {
@@ -592,7 +592,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.074812962
+            "runtime": 0.060952539
         },
         {
             "config": {
@@ -603,7 +603,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.073184194
+            "runtime": 0.060108208
         },
         {
             "config": {
@@ -614,7 +614,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.075327412
+            "runtime": 0.060472316
         },
         {
             "config": {
@@ -625,7 +625,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.071907629
+            "runtime": 0.060576026
         },
         {
             "config": {
@@ -636,7 +636,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.07058711
+            "runtime": 0.060386359
         },
         {
             "config": {
@@ -647,7 +647,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.072204879
+            "runtime": 0.06043929
         },
         {
             "config": {
@@ -658,7 +658,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.071962432
+            "runtime": 0.060092097
         },
         {
             "config": {
@@ -669,7 +669,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.072771428
+            "runtime": 0.061622064
         },
         {
             "config": {
@@ -680,7 +680,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.07192395
+            "runtime": 0.061471689
         },
         {
             "config": {
@@ -691,7 +691,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.07239649
+            "runtime": 0.062100989
         },
         {
             "config": {
@@ -702,7 +702,7 @@
                 "total_memory": 2048,
                 "use_huge_pages": false
             },
-            "runtime": 0.072957257
+            "runtime": 0.061270856
         }
     ]
 }
