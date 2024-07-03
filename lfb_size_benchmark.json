@@ -1,1 +1,0 @@
-{"results":[{"config":{"num_prefetch_instructions":10,"num_repetitions":10000000,"num_threads":8,"prefetch_distance":10,"total_memory":2048,"use_huge_pages":false},"runtime":0.10598680999999999}]}
