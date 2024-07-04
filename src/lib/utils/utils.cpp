@@ -101,7 +101,7 @@ void pin_to_cpu(NodeID cpu)
 
 void initialize_pointer_chase(uint64_t *data, size_t size)
 {
-    std::vector<size_t> random_numbers(size);
+    std::vector<uint64_t> random_numbers(size);
 
     std::iota(random_numbers.begin(), random_numbers.end(), 0);
     auto rng = std::mt19937{42};
@@ -119,4 +119,63 @@ void initialize_pointer_chase(uint64_t *data, size_t size)
         *(data + curr) = *before_zero;
         curr = *before_zero;
     }
+
+    // verify pointer chase:
+    // auto jumper = data;
+    // auto data_first = reinterpret_cast<uint64_t>(data);
+    // uint64_t counter = 1;
+    // while (*jumper != 0)
+    //{
+    //    jumper = reinterpret_cast<uint64_t *>(data + *jumper);
+    //    counter++;
+    //}
+    // if (counter != size)
+    //{
+    //    throw std::runtime_error("pointer chase init failed. Expected jumps : " + std::to_string(size) + " actual jumps: " + std::to_string(counter));
+    //}
+}
+
+// --- "Work" taken from https://dl.acm.org/doi/10.1145/3662010.3663451 ---
+
+inline std::uint32_t murmur_32_scramble(std::uint32_t k)
+{
+    /// Murmur3 32bit https://en.wikipedia.org/wiki/MurmurHash
+    k *= 0xcc9e2d51;
+    k = (k << 15) | (k >> 17);
+    k *= 0x1b873593;
+    return k;
+}
+
+inline std::uint32_t murmur_32(std::uint32_t val)
+{
+    /// Murmur3 32bit https://en.wikipedia.org/wiki/MurmurHash
+    auto h = 19553029U;
+
+    /// Scramble
+    h ^= murmur_32_scramble(val);
+    h = (h << 13U) | (h >> 19U);
+    h = h * 5U + 0xe6546b64;
+
+    /// Finalize
+    h ^= sizeof(std::uint32_t);
+    h ^= h >> 16U;
+    h *= 0x85ebca6b;
+    h ^= h >> 13U;
+    h *= 0xc2b2ae35;
+    h ^= h >> 16U;
+
+    return h;
+}
+
+// --- End "Work" ---
+
+size_t align_to_power_of_floor(size_t p, size_t align)
+{
+    return p & ~(align - 1);
+}
+
+template <typename T>
+size_t get_data_size_in_bytes(std::pmr::vector<T> &vec)
+{
+    return vec.size() * sizeof(T);
 }
