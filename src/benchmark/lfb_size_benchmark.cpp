@@ -55,29 +55,41 @@ void batched_load(size_t i, size_t number_accesses, auto &config, auto &data, au
 {
     pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][i]);
     size_t start_access = i * number_accesses;
-    size_t sum = 0;
+    uint8_t dependency = 0;
 
     auto num_batches = number_accesses / config.batch_size;
-    auto start = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration<double>{0};
     for (size_t b = 0; b < num_batches; ++b)
     {
-        auto offset = b * config.batch_size;
+        auto offset = start_access + (b * config.batch_size); // thread offset
+        auto start = std::chrono::high_resolution_clock::now();
         for (size_t i = 0; i < config.batch_size; ++i)
         {
-            __builtin_prefetch(reinterpret_cast<void *>(data.data() + accesses[offset + i]), 0, 3);
+            auto random_access = accesses[offset + i];
+            if (random_access + dependency < data.size())
+            {
+                random_access += dependency;
+            }
+            __builtin_prefetch(reinterpret_cast<void *>(data.data() + random_access), 0, 0);
         }
+        uint8_t new_dep = 0;
         for (size_t i = 0; i < config.batch_size; ++i)
         {
-            sum += *reinterpret_cast<uint8_t *>(data.data() + accesses[offset + i]);
+            auto random_access = accesses[offset + i];
+            if (random_access + dependency < data.size())
+            {
+                random_access += dependency;
+            }
+            new_dep += *reinterpret_cast<uint8_t *>(data.data() + random_access);
         }
-        _mm_lfence();
-        if (sum == 0)
-        {
-            throw std::runtime_error("sum not correct");
-        }
+        auto end = std::chrono::high_resolution_clock::now();
+        duration += end - start;
+        // LFB CLEAR
+        // idle computation
+        // noops
+        dependency = new_dep;
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    durations[i] = std::chrono::duration<double>(end - start);
+    durations[i] = std::chrono::duration<double>(duration);
 };
 
 void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results)
@@ -88,7 +100,7 @@ void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results)
 
     auto total_memory = config.total_memory * 1024 * 1024; // memory given in MiB
     std::pmr::vector<char> data(total_memory, &mem_res);
-    std::vector<std::uint64_t> accesses(config.num_repetitions);
+    std::pmr::vector<std::uint64_t> accesses(config.num_repetitions, &mem_res);
     std::iota(data.begin(), data.end(), 0);
     std::shuffle(accesses.begin(), accesses.end(), gen);
 
@@ -104,11 +116,11 @@ void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results)
     std::vector<std::jthread> threads;
 
     std::vector<std::chrono::duration<double>> durations(config.num_threads);
-    size_t number_accesses = accesses.size() / config.num_threads;
+    size_t number_accesses_per_thread = config.num_repetitions / config.num_threads;
     for (size_t i = 0; i < config.num_threads; ++i)
     {
         threads.emplace_back([&, i]()
-                             { batched_load(i, number_accesses, config, data, accesses, durations); });
+                             { batched_load(i, number_accesses_per_thread, config, data, accesses, durations); });
     }
     for (auto &t : threads)
     {

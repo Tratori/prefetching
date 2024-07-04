@@ -10,7 +10,7 @@
 
 #include "interleaving_numa_memory_resource.hpp"
 
-const auto PAGE_SIZE = get_page_size();
+const auto ACTUAL_PAGE_SIZE = get_page_size();
 
 InterleavingNumaMemoryResource::InterleavingNumaMemoryResource(NodeID num_numa_nodes, bool use_huge_pages) : num_numa_nodes_(num_numa_nodes), NumaMemoryResource(use_huge_pages){};
 
@@ -36,13 +36,13 @@ void InterleavingNumaMemoryResource::move_pages_policed(void *p, size_t size)
     auto bitmask = numa_bitmask_alloc(max_node + 1);
     numa_bitmask_clearall(bitmask);
 
-    size_t curr_size = PAGE_SIZE;
+    size_t curr_size = ACTUAL_PAGE_SIZE;
     char *last_start = reinterpret_cast<char *>(p);
     NodeID curr_node_id = node_id(reinterpret_cast<char *>(p));
     unsigned long num_pages = calculate_allocated_pages(size);
     for (int i = 1; i < num_pages; ++i)
     {
-        const auto target_node_id = node_id(reinterpret_cast<char *>(p) + (i * PAGE_SIZE));
+        const auto target_node_id = node_id(reinterpret_cast<char *>(p) + (i * ACTUAL_PAGE_SIZE));
         if (target_node_id != curr_node_id)
         {
             numa_bitmask_setbit(bitmask, curr_node_id);
@@ -53,13 +53,13 @@ void InterleavingNumaMemoryResource::move_pages_policed(void *p, size_t size)
             }
             numa_bitmask_clearbit(bitmask, curr_node_id);
 
-            last_start = reinterpret_cast<char *>(p) + (i * PAGE_SIZE);
-            curr_size = PAGE_SIZE;
+            last_start = reinterpret_cast<char *>(p) + (i * ACTUAL_PAGE_SIZE);
+            curr_size = ACTUAL_PAGE_SIZE;
             curr_node_id = target_node_id;
         }
         else
         {
-            curr_size += PAGE_SIZE;
+            curr_size += ACTUAL_PAGE_SIZE;
         }
     }
 

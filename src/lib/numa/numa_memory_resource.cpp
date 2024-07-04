@@ -18,11 +18,11 @@
 
 std::unordered_map<unsigned, NumaMemoryResource *> arena_to_resource_map;
 
-static const auto PAGE_SIZE = get_page_size();
+static const auto ACTUAL_PAGE_SIZE = get_page_size();
 
 std::size_t calculate_allocated_pages(size_t size)
 {
-    return (size + PAGE_SIZE - 1) / PAGE_SIZE;
+    return (size + ACTUAL_PAGE_SIZE - 1) / ACTUAL_PAGE_SIZE;
 }
 
 NumaMemoryResource::NumaMemoryResource(bool use_huge_pages) : _use_huge_pages(use_huge_pages)
@@ -84,6 +84,11 @@ NodeID NumaMemoryResource::node_id(void *p)
     return 0;
 }
 
+size_t align_to_huge_page_size(size_t size)
+{
+    return (size + HUGE_PAGE_SIZE - 1) & ~(HUGE_PAGE_SIZE - 1);
+}
+
 void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment, bool *zero,
                                 bool *commit, unsigned arena_index)
 {
@@ -97,6 +102,7 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
     if (memory_resource->_use_huge_pages)
     {
         mmap_flags |= MAP_HUGETLB;
+        size = align_to_huge_page_size(size);
     }
 
     void *addr = mmap(nullptr, size, PROT_READ | PROT_WRITE, mmap_flags, -1, 0);
@@ -109,11 +115,6 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
     memory_resource->move_pages_policed(addr, size);
 
     return addr;
-}
-
-size_t align_to_huge_page_size(size_t size)
-{
-    return (size + HUGE_PAGE_SIZE - 1) & ~(HUGE_PAGE_SIZE - 1);
 }
 
 bool NumaMemoryResource::dalloc(extent_hooks_t *extent_hooks, void *addr, size_t size, bool committed, unsigned arena_ind)

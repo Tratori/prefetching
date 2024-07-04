@@ -13,6 +13,11 @@ inline std::size_t get_page_size()
 {
     return static_cast<std::size_t>(sysconf(_SC_PAGESIZE));
 }
+
+inline std::size_t get_cache_line_size()
+{
+    return static_cast<std::size_t>(sysconf(_SC_LEVEL3_CACHE_LINESIZE));
+}
 constexpr size_t HUGE_PAGE_SIZE = 2 * 1024 * 1024;
 std::size_t calculate_allocated_pages(size_t size);
 
