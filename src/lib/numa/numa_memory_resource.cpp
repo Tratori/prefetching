@@ -25,8 +25,12 @@ std::size_t calculate_allocated_pages(size_t size)
     return (size + ACTUAL_PAGE_SIZE - 1) / ACTUAL_PAGE_SIZE;
 }
 
-NumaMemoryResource::NumaMemoryResource(bool use_huge_pages) : _use_huge_pages(use_huge_pages)
+NumaMemoryResource::NumaMemoryResource(bool use_explicit_huge_pages, bool madvise_huge_pages) : _use_explicit_huge_pages(use_explicit_huge_pages), _madvise_huge_pages(madvise_huge_pages)
 {
+    if (_use_explicit_huge_pages && _madvise_huge_pages)
+    {
+        throw std::logic_error("Choose either transparent or explicit huge pages or none.");
+    }
     auto arena_id = uint32_t{0};
     auto size = sizeof(arena_id);
     if (mallctl("arenas.create", static_cast<void *>(&arena_id), &size, nullptr, 0) != 0)
@@ -99,7 +103,7 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
     auto mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE;
 #endif
     auto memory_resource = arena_to_resource_map[arena_index];
-    if (memory_resource->_use_huge_pages)
+    if (memory_resource->_use_explicit_huge_pages)
     {
         mmap_flags |= MAP_HUGETLB;
         size = align_to_huge_page_size(size);
@@ -114,13 +118,20 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
 
     memory_resource->move_pages_policed(addr, size);
 
+    if (memory_resource->_madvise_huge_pages)
+    {
+        if (int ret = madvise(addr, size, MADV_HUGEPAGE) != 0)
+        {
+            throw std::runtime_error("madvise failed. Ernno : " + std::to_string(ret));
+        }
+    }
     return addr;
 }
 
 bool NumaMemoryResource::dalloc(extent_hooks_t *extent_hooks, void *addr, size_t size, bool committed, unsigned arena_ind)
 {
 
-    if (arena_to_resource_map[arena_ind]->_use_huge_pages)
+    if (arena_to_resource_map[arena_ind]->_use_explicit_huge_pages)
     {
         size = align_to_huge_page_size(size);
     }

@@ -10,7 +10,7 @@
 
 #include "static_numa_memory_resource.hpp"
 
-StaticNumaMemoryResource::StaticNumaMemoryResource(NodeID target_numa_node, bool use_huge_pages) : NumaMemoryResource(use_huge_pages), target_numa_node_(target_numa_node){};
+StaticNumaMemoryResource::StaticNumaMemoryResource(NodeID target_numa_node, bool use_explicit_huge_pages, bool madvise_huge_pages) : NumaMemoryResource(use_explicit_huge_pages, madvise_huge_pages), target_numa_node_(target_numa_node){};
 
 NodeID StaticNumaMemoryResource::node_id(void *p)
 {

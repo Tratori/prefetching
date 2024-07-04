@@ -11,7 +11,7 @@
 class InterleavingNumaMemoryResource : public NumaMemoryResource
 {
 public:
-    explicit InterleavingNumaMemoryResource(NodeID num_numa_nodes, bool use_huge_pages = false);
+    explicit InterleavingNumaMemoryResource(NodeID num_numa_nodes, bool use_explicit_huge_pages = false, bool use_madvise_huge_pages = false);
 
     NodeID node_id(void *p) override;
     void move_pages_policed(void *p, size_t size) override;

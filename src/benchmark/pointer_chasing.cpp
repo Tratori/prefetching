@@ -23,7 +23,8 @@ struct PCBenchmarkConfig
     size_t num_threads;
     size_t num_resolves;
     size_t num_parallel_pc;
-    bool use_huge_pages;
+    bool use_explicit_huge_pages;
+    bool madvise_huge_pages;
 };
 
 void pointer_chase(size_t thread_id, auto &config, auto &data, auto &durations)
@@ -85,7 +86,7 @@ void pointer_chase(size_t thread_id, auto &config, auto &data, auto &durations)
 std::pmr::vector<uint64_t> *cached_pointer_chase_arr = nullptr;
 void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results)
 {
-    StaticNumaMemoryResource mem_res{0, config.use_huge_pages};
+    StaticNumaMemoryResource mem_res{0, config.use_explicit_huge_pages, config.madvise_huge_pages};
     std::random_device rd;
     std::mt19937 gen(rd());
 
@@ -132,7 +133,8 @@ int main(int argc, char **argv)
         ("num_threads", "Number of threads running the bench", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("num_resolves", "Number of resolves each pointer chase executes", cxxopts::value<std::vector<size_t>>()->default_value("100000"))
         ("num_parallel_pc", "Number of parallel pointer chases per thread", cxxopts::value<std::vector<size_t>>()->default_value("10"))
-        ("use_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("true"));
+        ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
+        ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"));
     // clang-format on
     benchmark_config.parse(argc, argv);
 
@@ -145,20 +147,23 @@ int main(int argc, char **argv)
         auto num_threads = convert<size_t>(runtime_config["num_threads"]);
         auto num_resolves = convert<size_t>(runtime_config["num_resolves"]);
         auto num_parallel_pc = convert<size_t>(runtime_config["num_parallel_pc"]);
-        auto use_huge_pages = convert<bool>(runtime_config["use_huge_pages"]);
+        auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
+        auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
         PCBenchmarkConfig config = {
             total_memory,
             num_threads,
             num_resolves,
             num_parallel_pc,
-            use_huge_pages,
+            use_explicit_huge_pages,
+            madvise_huge_pages,
         };
         nlohmann::json results;
         results["config"]["total_memory"] = config.total_memory;
         results["config"]["num_threads"] = config.num_threads;
         results["config"]["num_resolves"] = config.num_resolves;
         results["config"]["num_parallel_pc"] = config.num_parallel_pc;
-        results["config"]["use_huge_pages"] = config.use_huge_pages;
+        results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
+        results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
 
         lfb_size_benchmark(config, results);
         all_results.push_back(results);
@@ -184,7 +189,7 @@ struct PBCBenchmarkConfig
     size_t num_threads;
     size_t num_resolves;
     size_t num_cache_lines;
-    bool use_huge_pages;
+    bool use_explicit_huge_pages;
 };
 
 void pointer_block_chase(size_t thread_id, PBCBenchmarkConfig &config, auto &data, auto &durations)

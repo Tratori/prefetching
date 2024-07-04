@@ -21,7 +21,7 @@ struct LFBBenchmarkConfig
     size_t num_repetitions;
     size_t batch_size;
     size_t prefetch_distance;
-    bool use_huge_pages;
+    bool use_explicit_huge_pages;
 };
 
 void simple_interleaved(size_t i, size_t number_accesses, auto &config, auto &data, auto &accesses, auto &durations)
@@ -94,7 +94,7 @@ void batched_load(size_t i, size_t number_accesses, auto &config, auto &data, au
 
 void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results)
 {
-    StaticNumaMemoryResource mem_res{0, config.use_huge_pages};
+    StaticNumaMemoryResource mem_res{0, config.use_explicit_huge_pages};
     std::random_device rd;
     std::mt19937 gen(rd());
 
@@ -146,7 +146,7 @@ int main(int argc, char **argv)
         ("num_repetitions", "Number of repetitions of the measurement", cxxopts::value<std::vector<size_t>>()->default_value("10000000"))
         ("batch_size", "Number of distinct prefetch instructions before loads start", cxxopts::value<std::vector<size_t>>()->default_value("10"))
         ("prefetch_distance", "number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("10"))
-        ("use_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("true"));
+        ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("true"));
     // clang-format on
     benchmark_config.parse(argc, argv);
 
@@ -160,14 +160,14 @@ int main(int argc, char **argv)
         auto num_repetitions = convert<size_t>(runtime_config["num_repetitions"]);
         auto batch_size = convert<size_t>(runtime_config["batch_size"]);
         auto prefetch_distance = convert<size_t>(runtime_config["prefetch_distance"]);
-        auto use_huge_pages = convert<bool>(runtime_config["use_huge_pages"]);
+        auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         LFBBenchmarkConfig config = {
             total_memory,
             num_threads,
             num_repetitions,
             batch_size,
             prefetch_distance,
-            use_huge_pages,
+            use_explicit_huge_pages,
         };
         nlohmann::json results;
         results["config"]["total_memory"] = config.total_memory;
@@ -175,7 +175,7 @@ int main(int argc, char **argv)
         results["config"]["num_repetitions"] = config.num_repetitions;
         results["config"]["batch_size"] = config.batch_size;
         results["config"]["prefetch_distance"] = config.prefetch_distance;
-        results["config"]["use_huge_pages"] = config.use_huge_pages;
+        results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
 
         lfb_size_benchmark(config, results);
         all_results.push_back(results);
