@@ -78,7 +78,7 @@ void pointer_block_chase(size_t thread_id, PBCBenchmarkConfig &config, auto &dat
         }
         curr_base_cache_line_offset = next_base_cache_line_offset % (data_size_bytes - 1 - CACHELINE_SIZE * config.num_cache_lines);
         // std::cout << end - start << std::endl;
-        duration += (end - start) * config.num_cache_lines;
+        duration += (end - start - CLOCK_MIN_DURATION);
         // LFB CLEAR
         // idle computation
         // noops
@@ -87,7 +87,7 @@ void pointer_block_chase(size_t thread_id, PBCBenchmarkConfig &config, auto &dat
     {
         throw std::runtime_error("bad offset");
     }
-    durations[thread_id] = duration - (CLOCK_MIN_DURATION * config.num_resolves);
+    durations[thread_id] = duration;
     for (auto p : curr_pointers)
     {
         if (p >= data.size())
@@ -148,12 +148,12 @@ void pointer_chase(size_t thread_id, auto &config, auto &data, auto &durations)
         {
             curr_pointers[i] = (next_pointers[(rotation_offset + i) % config.num_parallel_pc] + rotation_offset) % data.size();
         }
-        duration += end - start;
+        duration += end - start - CLOCK_MIN_DURATION;
         // LFB CLEAR
         // idle computation
         // noops
     }
-    durations[thread_id] = duration - (CLOCK_MIN_DURATION * config.num_resolves);
+    durations[thread_id] = duration;
     for (auto p : curr_pointers)
     {
         if (p >= data.size())
@@ -184,6 +184,22 @@ void lfb_size_benchmark(PBCBenchmarkConfig config, nlohmann::json &results)
 
     std::vector<std::jthread> threads;
 
+    // ---- Warm-up ----
+    auto warm_up_config = PBCBenchmarkConfig{config};
+    warm_up_config.num_cache_lines = 16;
+    warm_up_config.num_resolves = 100'000;
+    std::vector<std::chrono::duration<double>> empty_durations(config.num_threads);
+    for (size_t i = 0; i < config.num_threads; ++i)
+    {
+        threads.emplace_back([&, i]()
+                             { pointer_block_chase(i, config, pointer_chase_arr, empty_durations); });
+    }
+    for (auto &t : threads)
+    {
+        t.join();
+    }
+    threads.clear();
+    // ---- End-up ----
     std::vector<std::chrono::duration<double>> durations(config.num_threads);
     for (size_t i = 0; i < config.num_threads; ++i)
     {
