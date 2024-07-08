@@ -183,6 +183,16 @@ size_t get_data_size_in_bytes(std::pmr::vector<T> &vec)
 
 auto get_steady_clock_min_duration(size_t repetitions)
 {
+    // warm up
+    for (size_t i = 0; i < 50'000'000; ++i)
+    {
+        asm volatile("" ::: "memory");
+        auto start = std::chrono::steady_clock::now();
+        asm volatile("" ::: "memory");
+        auto end = std::chrono::steady_clock::now();
+        asm volatile("" ::: "memory");
+    }
+
     auto duration = std::chrono::duration<double>{0};
     for (size_t i = 0; i < repetitions; ++i)
     {
