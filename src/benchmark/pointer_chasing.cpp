@@ -16,6 +16,7 @@
 
 size_t CACHELINE_SIZE = get_cache_line_size();
 size_t ACTUAL_PAGE_SIZE = get_page_size();
+const auto CLOCK_MIN_DURATION = get_steady_clock_min_duration(1'000'000);
 
 /*
    We also tried to copy the Dortmund papers approach by randomly fetching blocks of differently sized Cache Line blocks.
@@ -86,7 +87,7 @@ void pointer_block_chase(size_t thread_id, PBCBenchmarkConfig &config, auto &dat
     {
         throw std::runtime_error("bad offset");
     }
-    durations[thread_id] = duration;
+    durations[thread_id] = duration - (CLOCK_MIN_DURATION * config.num_resolves);
     for (auto p : curr_pointers)
     {
         if (p >= data.size())
@@ -152,7 +153,7 @@ void pointer_chase(size_t thread_id, auto &config, auto &data, auto &durations)
         // idle computation
         // noops
     }
-    durations[thread_id] = duration;
+    durations[thread_id] = duration - (CLOCK_MIN_DURATION * config.num_resolves);
     for (auto p : curr_pointers)
     {
         if (p >= data.size())
