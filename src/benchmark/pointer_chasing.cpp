@@ -17,6 +17,85 @@
 size_t CACHELINE_SIZE = get_cache_line_size();
 size_t ACTUAL_PAGE_SIZE = get_page_size();
 
+/*
+   We also tried to copy the Dortmund papers approach by randomly fetching blocks of differently sized Cache Line blocks.
+   By measuring the average prefetch latency, we attempted to approximate the size of the LFB.
+   This is stupid as from a certain block size on, the Hardware prefetchers pick up as the memory access is sequential for
+   every cache line block. Code can be seen below:
+*/
+
+struct PBCBenchmarkConfig
+{
+    size_t total_memory;
+    size_t num_threads;
+    size_t num_resolves;
+    size_t num_cache_lines;
+    bool use_explicit_huge_pages;
+    bool madvise_huge_pages;
+};
+
+size_t COMPUTE_FACTOR = 32U;
+void pointer_block_chase(size_t thread_id, PBCBenchmarkConfig &config, auto &data, auto &durations)
+{
+    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][thread_id]);
+    uint8_t dependency = 0;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    size_t data_size_bytes = get_data_size_in_bytes(data);
+
+    std::uniform_int_distribution<> uniform_dis(0, data_size_bytes - 1 - CACHELINE_SIZE * config.num_cache_lines);
+
+    std::vector<uint64_t> curr_pointers(config.num_cache_lines);
+    auto curr_base_cache_line_offset = align_to_power_of_floor(uniform_dis(gen), CACHELINE_SIZE);
+    auto duration = std::chrono::duration<double>{0};
+    for (size_t r = 0; r < config.num_resolves / config.num_cache_lines; ++r)
+    {
+        __builtin_prefetch(reinterpret_cast<void *>(reinterpret_cast<char *>(data.data()) + curr_base_cache_line_offset), 0, 0);
+
+        _mm_lfence();
+        asm volatile("" ::: "memory");
+        auto start = std::chrono::steady_clock::now();
+        asm volatile("" ::: "memory");
+
+        for (size_t i = 0; i < config.num_cache_lines; ++i)
+        {
+            __builtin_prefetch(reinterpret_cast<void *>(reinterpret_cast<char *>(data.data()) + curr_base_cache_line_offset + CACHELINE_SIZE * i), 0, 0);
+        }
+        asm volatile("" ::: "memory");
+        auto end = std::chrono::steady_clock::now();
+        asm volatile("" ::: "memory");
+        auto next_base_cache_line_offset = murmur_32(r);
+        for (size_t i = 0; i < config.num_cache_lines; ++i)
+        {
+            for (size_t j = 0; j < CACHELINE_SIZE / sizeof(uint32_t); ++j)
+            {
+                for (size_t l = 0; l < COMPUTE_FACTOR; l++)
+                {
+                    next_base_cache_line_offset += murmur_32((*reinterpret_cast<uint32_t *>(reinterpret_cast<char *>(data.data())) >> l + curr_base_cache_line_offset + CACHELINE_SIZE * i + sizeof(uint32_t) * j));
+                }
+            }
+        }
+        curr_base_cache_line_offset = next_base_cache_line_offset % (data_size_bytes - 1 - CACHELINE_SIZE * config.num_cache_lines);
+        // std::cout << end - start << std::endl;
+        duration += (end - start) * config.num_cache_lines;
+        // LFB CLEAR
+        // idle computation
+        // noops
+    }
+    if (curr_base_cache_line_offset > data_size_bytes)
+    {
+        throw std::runtime_error("bad offset");
+    }
+    durations[thread_id] = duration;
+    for (auto p : curr_pointers)
+    {
+        if (p >= data.size())
+        {
+            throw std::runtime_error("Invalid final pointer stored");
+        }
+    }
+};
+
 struct PCBenchmarkConfig
 {
     size_t total_memory;
@@ -84,7 +163,7 @@ void pointer_chase(size_t thread_id, auto &config, auto &data, auto &durations)
 };
 
 std::pmr::vector<uint64_t> *cached_pointer_chase_arr = nullptr;
-void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results)
+void lfb_size_benchmark(PBCBenchmarkConfig config, nlohmann::json &results)
 {
     StaticNumaMemoryResource mem_res{0, config.use_explicit_huge_pages, config.madvise_huge_pages};
     std::random_device rd;
@@ -108,7 +187,7 @@ void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results)
     for (size_t i = 0; i < config.num_threads; ++i)
     {
         threads.emplace_back([&, i]()
-                             { pointer_chase(i, config, pointer_chase_arr, durations); });
+                             { pointer_block_chase(i, config, pointer_chase_arr, durations); });
     }
     for (auto &t : threads)
     {
@@ -120,7 +199,7 @@ void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results)
         total_time += duration;
     }
     results["runtime"] = total_time.count();
-    std::cout << config.num_parallel_pc << " took " << total_time.count() << std::endl;
+    std::cout << config.num_cache_lines << " took " << total_time.count() << std::endl;
 }
 
 int main(int argc, char **argv)
@@ -149,7 +228,7 @@ int main(int argc, char **argv)
         auto num_parallel_pc = convert<size_t>(runtime_config["num_parallel_pc"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
-        PCBenchmarkConfig config = {
+        PBCBenchmarkConfig config = {
             total_memory,
             num_threads,
             num_resolves,
@@ -161,7 +240,7 @@ int main(int argc, char **argv)
         results["config"]["total_memory"] = config.total_memory;
         results["config"]["num_threads"] = config.num_threads;
         results["config"]["num_resolves"] = config.num_resolves;
-        results["config"]["num_parallel_pc"] = config.num_parallel_pc;
+        results["config"]["num_cache_lines"] = config.num_cache_lines;
         results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
         results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
 
@@ -175,75 +254,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-
-/*
-   We also tried to copy the Dortmund papers approach by randomly fetching blocks of differently sized Cache Line blocks.
-   By measuring the average prefetch latency, we attempted to approximate the size of the LFB.
-   This is stupid as from a certain block size on, the Hardware prefetchers pick up as the memory access is sequential for
-   every cache line block. Code can be seen below:
-*/
-
-struct PBCBenchmarkConfig
-{
-    size_t total_memory;
-    size_t num_threads;
-    size_t num_resolves;
-    size_t num_cache_lines;
-    bool use_explicit_huge_pages;
-};
-
-void pointer_block_chase(size_t thread_id, PBCBenchmarkConfig &config, auto &data, auto &durations)
-{
-    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][thread_id]);
-    uint8_t dependency = 0;
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    size_t data_size_bytes = get_data_size_in_bytes(data);
-
-    std::uniform_int_distribution<> uniform_dis(0, data_size_bytes - 1 - CACHELINE_SIZE * config.num_cache_lines);
-
-    std::vector<uint64_t> curr_pointers(config.num_cache_lines);
-    auto curr_base_cache_line_offset = align_to_power_of_floor(uniform_dis(gen), CACHELINE_SIZE);
-    auto duration = std::chrono::duration<double>{0};
-    for (size_t r = 0; r < config.num_resolves / config.num_cache_lines; ++r)
-    {
-        _mm_lfence();
-        asm volatile("" ::: "memory");
-        auto start = std::chrono::steady_clock::now();
-        asm volatile("" ::: "memory");
-
-        for (size_t i = 0; i < config.num_cache_lines; ++i)
-        {
-            __builtin_prefetch(reinterpret_cast<void *>(reinterpret_cast<char *>(data.data()) + curr_base_cache_line_offset + CACHELINE_SIZE * i), 0, 0);
-        }
-        asm volatile("" ::: "memory");
-        auto end = std::chrono::steady_clock::now();
-        asm volatile("" ::: "memory");
-        auto next_base_cache_line_offset = murmur_32(r);
-        for (size_t i = 0; i < config.num_cache_lines; ++i)
-        {
-            for (size_t j = 0; j < CACHELINE_SIZE / sizeof(uint32_t); ++j)
-            {
-                next_base_cache_line_offset += murmur_32(*reinterpret_cast<uint32_t *>(reinterpret_cast<char *>(data.data()) + curr_base_cache_line_offset + CACHELINE_SIZE * i + sizeof(uint32_t) * j));
-            }
-        }
-        curr_base_cache_line_offset = next_base_cache_line_offset % (data_size_bytes - 1 - CACHELINE_SIZE * config.num_cache_lines);
-        // std::cout << end - start << std::endl;
-        duration += end - start;
-        // LFB CLEAR
-        // idle computation
-        // noops
-    }
-    if (curr_base_cache_line_offset > data_size_bytes)
-    {
-        throw std::runtime_error("bad offset");
-    }
-    durations[thread_id] = duration;
-    for (auto p : curr_pointers)
-    {
-        if (p >= data.size())
-        {
-            throw std::runtime_error("Invalid final pointer stored");
-        }
-    }
-};
