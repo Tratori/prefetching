@@ -205,3 +205,67 @@ auto get_steady_clock_min_duration(size_t repetitions)
     }
     return duration / repetitions;
 }
+
+void ensure(auto exp, auto message)
+{
+    if (!exp)
+    {
+        throw std::runtime_error(message);
+    }
+}
+/*
+    Even when using huge pages, l2 tlb misses are still a thing somehow.
+    To avoid having to pay these tlb misses during prefetches, we ignore the first x bytes of each page and fill them with 0.
+    Later, when want to prefetch the random pointers, we touch these first bytes of all to be resolved pointers first.
+    We write one pointer per cacheline and one pointer always points to the start of a cacheline.
+    layout of a single page:
+
+        | pad_bytes | cacheline 1 | ... | cacheline n | remainder |
+
+*/
+void initialize_padded_pointer_chase(auto &data_vector, size_t total_byte_size, size_t pad_bytes, size_t page_size, size_t cache_line_size)
+{
+    ensure(pad_bytes % cache_line_size == 0, "Padding must be multiple of cache line size");
+
+    size_t pointers_per_page = (page_size - pad_bytes) / cache_line_size;
+    size_t pages = total_byte_size / page_size;
+
+    ensure(data_vector.size() == total_byte_size, "Data vector is of wrong size");
+
+    memset(data_vector.data(), 0, total_byte_size);
+    std::vector<char *> random_pointers;
+    random_pointers.reserve(pointers_per_page * pages);
+
+    for (size_t page = 0; page < pages; ++page)
+    {
+        for (size_t pointer = 0; pointer < pointers_per_page; ++pointer)
+        {
+            random_pointers.push_back(data_vector.data() + page * page_size + pad_bytes + pointer * cache_line_size);
+        }
+    }
+
+    auto rng = std::mt19937{std::random_device{}()};
+    std::shuffle(random_pointers.begin(), random_pointers.end(), rng);
+
+    for (size_t i = 0; i < random_pointers.size(); ++i)
+    {
+        char **current_pointer = reinterpret_cast<char **>(random_pointers[i]);
+        char *next_pointer = random_pointers[(i + 1) % random_pointers.size()];
+        *current_pointer = next_pointer;
+    }
+
+    // Verify pointer chase:
+    char *start = data_vector.data() + pad_bytes;
+    char *curr = start;
+    uint64_t counter = 0;
+    do
+    {
+        curr = *reinterpret_cast<char **>(curr);
+        counter++;
+    } while (curr != start);
+
+    if (counter != pointers_per_page * pages)
+    {
+        throw std::runtime_error("Pointer chase init failed. Expected jumps: " + std::to_string(pointers_per_page * pages) + " actual jumps: " + std::to_string(counter));
+    }
+}
