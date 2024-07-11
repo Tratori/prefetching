@@ -47,7 +47,7 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
         curr_pointers.push_back(reinterpret_cast<char *>(random_pointer));
     }
 
-    auto duration = std::chrono::duration<double>{0};
+    std::vector<std::chrono::duration<double>> local_durations(config.num_resolves / config.num_parallel_pc);
 
     for (size_t r = 0; r < config.num_resolves / config.num_parallel_pc; r++)
     {
@@ -74,13 +74,13 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
         asm volatile("" ::: "memory");
         auto end = std::chrono::steady_clock::now();
         asm volatile("" ::: "memory");
-        duration += end - start - CLOCK_MIN_DURATION;
+        local_durations[r] = end - start - CLOCK_MIN_DURATION;
         for (auto &random_pointer : curr_pointers)
         {
             random_pointer = *reinterpret_cast<char **>(random_pointer);
         }
     }
-    durations[thread_id] = duration;
+    durations[thread_id] = findMedian(local_durations, local_durations.size());
 };
 
 std::pmr::vector<char> *cached_pointer_chase_arr = nullptr;

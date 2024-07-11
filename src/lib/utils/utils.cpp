@@ -4,6 +4,7 @@
 #include <random>
 #include <chrono>
 #include <iostream>
+#include <algorithm>
 #include <thread>
 
 #include "profiler.cpp"
@@ -267,5 +268,34 @@ void initialize_padded_pointer_chase(auto &data_vector, size_t total_byte_size, 
     if (counter != pointers_per_page * pages)
     {
         throw std::runtime_error("Pointer chase init failed. Expected jumps: " + std::to_string(pointers_per_page * pages) + " actual jumps: " + std::to_string(counter));
+    }
+}
+
+auto findMedian(auto &container,
+                int n)
+{
+
+    if (n % 2 == 0)
+    {
+
+        nth_element(container.begin(),
+                    container.begin() + n / 2,
+                    container.end());
+
+        nth_element(container.begin(),
+                    container.begin() + (n - 1) / 2,
+                    container.end());
+
+        return container[(n - 1) / 2] + container[n / 2] / 2.0;
+    }
+
+    else
+    {
+
+        nth_element(container.begin(),
+                    container.begin() + n / 2,
+                    container.end());
+
+        return container[n / 2];
     }
 }
