@@ -52,6 +52,13 @@ NumaMemoryResource::NumaMemoryResource(bool use_explicit_huge_pages, bool madvis
     extentHooks_ = *hooks;
     extentHooks_.alloc = &alloc;
     extentHooks_.dalloc = &dalloc;
+    extentHooks_.commit = nullptr;
+    extentHooks_.decommit = nullptr;
+    extentHooks_.destroy = nullptr;
+    extentHooks_.merge = nullptr;
+    extentHooks_.purge_forced = nullptr;
+    extentHooks_.purge_lazy = nullptr;
+    extentHooks_.split = nullptr;
     extent_hooks_t *new_hooks = &extentHooks_;
     if (auto ret = mallctl(
             hooks_key.str().c_str(),
