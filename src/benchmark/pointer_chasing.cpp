@@ -48,9 +48,10 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
         curr_pointers.push_back(reinterpret_cast<char *>(random_pointer));
     }
 
-    std::vector<std::chrono::duration<double>> local_durations(config.num_resolves / config.num_parallel_pc);
+    const auto number_repetitions = config.num_resolves / config.num_parallel_pc / config.accessed_cache_lines;
+    std::vector<std::chrono::duration<double>> local_durations(number_repetitions);
 
-    for (size_t r = 0; r < config.num_resolves / config.num_parallel_pc / config.accessed_cache_lines; r++)
+    for (size_t r = 0; r < number_repetitions; r++)
     {
         // Trigger TLB misses by accessing start of page.
         volatile size_t sum = 0;
