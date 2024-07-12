@@ -14,8 +14,8 @@
 #include "numa/static_numa_memory_resource.hpp"
 #include "utils/utils.cpp"
 
-size_t CACHELINE_SIZE = get_cache_line_size();
-size_t ACTUAL_PAGE_SIZE = get_page_size();
+const size_t CACHELINE_SIZE = get_cache_line_size();
+const size_t ACTUAL_PAGE_SIZE = get_page_size();
 const auto CLOCK_MIN_DURATION = get_steady_clock_min_duration(1'000'000);
 
 struct PCBenchmarkConfig
@@ -24,6 +24,7 @@ struct PCBenchmarkConfig
     size_t num_threads;
     size_t num_resolves;
     size_t num_parallel_pc;
+    size_t accessed_cache_lines;
     bool use_explicit_huge_pages;
     bool madvise_huge_pages;
 };
@@ -52,13 +53,12 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
     for (size_t r = 0; r < config.num_resolves / config.num_parallel_pc; r++)
     {
         // Trigger TLB misses by accessing start of page.
-        size_t sum = 0;
+        volatile size_t sum = 0;
         for (auto random_pointer : curr_pointers)
         {
             auto padding_page_pointer = reinterpret_cast<char *>(reinterpret_cast<size_t>(random_pointer) & ~(ACTUAL_PAGE_SIZE - 1));
-            sum += *padding_page_pointer;
+            sum = sum + *padding_page_pointer;
         }
-        // std::cout << sum << std::endl;
         //  ensure(sum == 0, "padding page area contained != 0");
         _mm_lfence();
         // prefetch actual pointers
@@ -69,7 +69,10 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
 
         for (auto random_pointer : curr_pointers)
         {
-            __builtin_prefetch(reinterpret_cast<void *>(random_pointer), 0, 0);
+            for (size_t i = 0; i < config.accessed_cache_lines; ++i)
+            {
+                __builtin_prefetch(reinterpret_cast<void *>(random_pointer + CACHELINE_SIZE * i), 0, 0); // This can actually access wrong addresses, but prefetch should be allowed to do that.
+            }
         }
         asm volatile("" ::: "memory");
         auto end = std::chrono::steady_clock::now();
@@ -149,6 +152,7 @@ int main(int argc, char **argv)
         ("num_threads", "Number of threads running the bench", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("num_resolves", "Number of resolves each pointer chase executes", cxxopts::value<std::vector<size_t>>()->default_value("1000000"))
         ("num_parallel_pc", "Number of parallel pointer chases per thread", cxxopts::value<std::vector<size_t>>()->default_value("10"))
+        ("accessed_cache_lines", "Number cache lines that are prefetched per pointer resolve", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"));
     // clang-format on
@@ -163,6 +167,7 @@ int main(int argc, char **argv)
         auto num_threads = convert<size_t>(runtime_config["num_threads"]);
         auto num_resolves = convert<size_t>(runtime_config["num_resolves"]);
         auto num_parallel_pc = convert<size_t>(runtime_config["num_parallel_pc"]);
+        auto accessed_cache_lines = convert<size_t>(runtime_config["accessed_cache_lines"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
         PCBenchmarkConfig config = {
@@ -170,6 +175,7 @@ int main(int argc, char **argv)
             num_threads,
             num_resolves,
             num_parallel_pc,
+            accessed_cache_lines,
             use_explicit_huge_pages,
             madvise_huge_pages,
         };
@@ -178,6 +184,7 @@ int main(int argc, char **argv)
         results["config"]["num_threads"] = config.num_threads;
         results["config"]["num_resolves"] = config.num_resolves;
         results["config"]["num_parallel_pc"] = config.num_parallel_pc;
+        results["config"]["accessed_cache_lines"] = config.accessed_cache_lines;
         results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
         results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
 
