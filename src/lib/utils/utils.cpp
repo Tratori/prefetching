@@ -182,6 +182,35 @@ size_t get_data_size_in_bytes(std::pmr::vector<T> &vec)
     return vec.size() * sizeof(T);
 }
 
+auto findMedian(auto &container,
+                int n)
+{
+
+    if (n % 2 == 0)
+    {
+
+        nth_element(container.begin(),
+                    container.begin() + n / 2,
+                    container.end());
+
+        nth_element(container.begin(),
+                    container.begin() + (n - 1) / 2,
+                    container.end());
+
+        return container[(n - 1) / 2] + container[n / 2] / 2.0;
+    }
+
+    else
+    {
+
+        nth_element(container.begin(),
+                    container.begin() + n / 2,
+                    container.end());
+
+        return container[n / 2];
+    }
+}
+
 auto get_steady_clock_min_duration(size_t repetitions)
 {
     // warm up
@@ -194,7 +223,7 @@ auto get_steady_clock_min_duration(size_t repetitions)
         asm volatile("" ::: "memory");
     }
 
-    auto duration = std::chrono::duration<double>{0};
+    std::vector<std::chrono::duration<double>> durations(repetitions);
     for (size_t i = 0; i < repetitions; ++i)
     {
         asm volatile("" ::: "memory");
@@ -202,9 +231,9 @@ auto get_steady_clock_min_duration(size_t repetitions)
         asm volatile("" ::: "memory");
         auto end = std::chrono::steady_clock::now();
         asm volatile("" ::: "memory");
-        duration += end - start;
+        durations[i] = end - start;
     }
-    return duration / repetitions;
+    return findMedian(durations, durations.size());
 }
 
 void ensure(auto exp, auto message)
@@ -268,34 +297,5 @@ void initialize_padded_pointer_chase(auto &data_vector, size_t total_byte_size, 
     if (counter != pointers_per_page * pages)
     {
         throw std::runtime_error("Pointer chase init failed. Expected jumps: " + std::to_string(pointers_per_page * pages) + " actual jumps: " + std::to_string(counter));
-    }
-}
-
-auto findMedian(auto &container,
-                int n)
-{
-
-    if (n % 2 == 0)
-    {
-
-        nth_element(container.begin(),
-                    container.begin() + n / 2,
-                    container.end());
-
-        nth_element(container.begin(),
-                    container.begin() + (n - 1) / 2,
-                    container.end());
-
-        return container[(n - 1) / 2] + container[n / 2] / 2.0;
-    }
-
-    else
-    {
-
-        nth_element(container.begin(),
-                    container.begin() + n / 2,
-                    container.end());
-
-        return container[n / 2];
     }
 }
