@@ -1,0 +1,180 @@
+{
+    "results": [
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 2,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.003859996999921334
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 4,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.0035830819999526178
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 6,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.002800129141392551
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 8,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.002075036500029763
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 10,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.0017671760000304338
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 12,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.0016724495707226763
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 14,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.001595827508655264
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 16,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.0016072977500226895
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 18,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.0015891772845107257
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 20,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.001550644000019203
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 22,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.0016253406873276198
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 24,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.001670987641404349
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 26,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.0021964785815829667
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 28,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.002039782610370626
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 30,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.0024380765707034038
+        },
+        {
+            "config": {
+                "madvise_huge_pages": true,
+                "num_parallel_pc": 32,
+                "num_resolves": 10000000,
+                "num_threads": 1,
+                "total_memory": 1024,
+                "use_explicit_huge_pages": false
+            },
+            "runtime": 0.0030676573750046967
+        }
+    ]
+}
