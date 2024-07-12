@@ -79,9 +79,17 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
         auto end = std::chrono::steady_clock::now();
         asm volatile("" ::: "memory");
         local_durations[r] = end - start - CLOCK_MIN_DURATION;
+
+        // Proceed to the next pointer and also perform some work to make cpu reordering harder.
+        volatile uint32_t work_sum = 0;
+        const size_t WORK_FACTOR = 8;
         for (auto &random_pointer : curr_pointers)
         {
             random_pointer = *reinterpret_cast<char **>(random_pointer);
+            for (size_t w = 0; w < WORK_FACTOR; ++w)
+            {
+                work_sum = work_sum + murmur_32(reinterpret_cast<uint64_t>(random_pointer) >> w);
+            }
         }
     }
     durations[thread_id] = findMedian(local_durations, local_durations.size());
