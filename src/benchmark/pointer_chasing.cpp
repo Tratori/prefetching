@@ -50,7 +50,7 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
 
     std::vector<std::chrono::duration<double>> local_durations(config.num_resolves / config.num_parallel_pc);
 
-    for (size_t r = 0; r < config.num_resolves / config.num_parallel_pc; r++)
+    for (size_t r = 0; r < config.num_resolves / config.num_parallel_pc / config.accessed_cache_lines; r++)
     {
         // Trigger TLB misses by accessing start of page.
         volatile size_t sum = 0;
