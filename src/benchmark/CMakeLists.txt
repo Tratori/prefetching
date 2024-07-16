@@ -27,3 +27,8 @@ target_link_libraries(lfb_size prefetching)
 add_executable(pc pointer_chasing.cpp)
 
 target_link_libraries(pc prefetching)
+
+add_executable(memory_latencies memory_latencies.cpp)
+
+target_link_libraries(memory_latencies prefetching tinymembench_lib)
+target_include_directories(memory_latencies PUBLIC ${PROJECT_SOURCE_DIR}/third_party/tinymembench)
