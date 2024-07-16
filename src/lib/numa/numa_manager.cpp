@@ -37,6 +37,13 @@ void NumaManager::init_topology_info()
             node_to_cpus[numa_node].push_back(numa_cpu);
         }
     }
+    for (NodeID numa_node = 0; numa_node < number_nodes; ++numa_node)
+    {
+        if (node_to_cpus[numa_node].size())
+        {
+            active_nodes.push_back(numa_node);
+        }
+    }
 }
 
 void NumaManager::print_topology()
