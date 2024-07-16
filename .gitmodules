@@ -10,3 +10,6 @@
 [submodule "third_party/cxxopts"]
 	path = third_party/cxxopts
 	url = https://github.com/jarro2783/cxxopts
+[submodule "third_party/tinymembench"]
+	path = third_party/tinymembench
+	url = https://github.com/tratori/tinymembench
