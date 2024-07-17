@@ -22,7 +22,7 @@ void StaticNumaMemoryResource::move_pages_policed(void *p, size_t size)
     {
         return;
     }
-    auto bitmask = numa_bitmask_alloc(max_node);
+    auto bitmask = numa_bitmask_alloc(max_node + 1);
     numa_bitmask_clearall(bitmask);
     const auto target_node_id = node_id(p);
     numa_bitmask_setbit(bitmask, target_node_id);
