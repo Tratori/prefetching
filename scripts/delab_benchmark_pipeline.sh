@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Execute
-# ./delab_benchmark_pipeline.sh <node_name> <benchmark_executable_name> <run_name>
+# ./delab_benchmark_pipeline.sh <node_name> <benchmark_executable_name> <run_name> <... additional args ...>
 
-LOG_FILE="/prefetching/results/${2}/${1}/build_log.txt"
-
+LOG_FILE="/prefetching/results/${3}/${1}/build_log.txt"
+RESULT_FILE="/prefetching/results/${3}/${1}/${benchmark_executable_name}.json"
 {
     cd /prefetching
 
@@ -15,7 +15,7 @@ LOG_FILE="/prefetching/results/${2}/${1}/build_log.txt"
 
     make -j
 
-    if ./benchmark/${2}; then
+    if ./benchmark/${2} --out="$RESULT_FILE" ${@:4}; then
         echo "success" >&2
     else
         echo "error" >&2

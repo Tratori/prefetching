@@ -28,7 +28,7 @@ struct LBenchmarkConfig
 };
 
 // Adapted from Tinymembench
-int latency_bench(LBenchmarkConfig &config, auto results)
+int latency_bench(LBenchmarkConfig &config, auto &results)
 {
     double t, t2, t_before, t_after, t_noaccess, t_noaccess2;
     double xs, xs0, xs1, xs2;
@@ -37,7 +37,8 @@ int latency_bench(LBenchmarkConfig &config, auto results)
     int nbits, n;
     char *buffer;
 
-    auto memRes = StaticNumaMemoryResource(NodeID{config.alloc_on_node}, config.use_explicit_huge_pages, config.madvise_huge_pages);
+    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[config.run_on_node][0]);
+    auto memRes = StaticNumaMemoryResource(config.alloc_on_node, config.use_explicit_huge_pages, config.madvise_huge_pages);
 
     // TODO: handle alignment correctly
     buffer = reinterpret_cast<char *>(memRes.allocate(config.memory_size << 20, 1 << 22));
@@ -132,15 +133,16 @@ int main(int argc, char **argv)
     // clang-format off
     benchmark_config.add_options()
         ("memory_size", "Total memory allocated MiB", cxxopts::value<std::vector<int>>()->default_value("1024"))
-        ("start_access_range", "Range on which memory accesses are done (in Bytes, max 4GiB)", cxxopts::value<std::vector<int>>()->default_value("1024"))
-        ("end_access_range", "Range on which memory accesses are done (in Bytes, max 4GiB)", cxxopts::value<std::vector<int>>()->default_value("67108864"))
+        ("start_access_range", "start memory accesses range (in Bytes, max ~1GiB)", cxxopts::value<std::vector<int>>()->default_value("1024"))
+        ("end_access_range", "end memory accesses range (in Bytes, max ~1GiB)", cxxopts::value<std::vector<int>>()->default_value("536870912"))
         ("growth_factor", "Factor with which the access range grows per iteration", cxxopts::value<std::vector<double>>()->default_value("1.1"))
-        ("alloc_on_node", "Number of resolves each pointer chase executes", cxxopts::value<std::vector<NodeID>>()->default_value("0"))
-        ("run_on_node", "Number of parallel pointer chases per thread", cxxopts::value<std::vector<NodeID>>()->default_value("0"))
+        ("alloc_on_node", "Defines on which NUMA node the benchmark allocates memory", cxxopts::value<std::vector<NodeID>>()->default_value("0"))
+        ("run_on_node", "Defines on which NUMA node the benchmark is run", cxxopts::value<std::vector<NodeID>>()->default_value("0"))
         ("repeats", "Number of memory accesses per configuration", cxxopts::value<std::vector<int>>()->default_value("10000000"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
-        ("generate_numa_matrix", "Automatically iterates over all possible alloc and run configurations", cxxopts::value<std::vector<bool>>()->default_value("false"));
+        ("generate_numa_matrix", "Automatically iterates over all possible alloc and run configurations", cxxopts::value<std::vector<bool>>()->default_value("false"))
+        ("out", "Path on which results should be stored", cxxopts::value<std::vector<std::string>>()->default_value("latency_benchmark.json"));
     // clang-format on
     benchmark_config.parse(argc, argv);
 
@@ -159,6 +161,8 @@ int main(int argc, char **argv)
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
         auto generate_numa_matrix = convert<bool>(runtime_config["generate_numa_matrix"]);
+        auto out = convert<std::string>(runtime_config["out"]);
+
         LBenchmarkConfig config = {
             memory_size,
             start_access_range,
@@ -202,7 +206,7 @@ int main(int argc, char **argv)
             }
         }
 
-        auto results_file = std::ofstream{"latency_benchmark.json"};
+        auto results_file = std::ofstream{out};
         nlohmann::json intermediate_json;
         intermediate_json["results"] = all_results;
         results_file << intermediate_json.dump(-1) << std::flush;
