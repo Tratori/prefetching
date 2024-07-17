@@ -69,61 +69,58 @@ int latency_bench(LBenchmarkConfig &config, auto results)
     else
         throw std::logic_error("hugepage config wrong");
 
-    for (nbits = 10; (1 << nbits) <= config.access_range; nbits++)
+    int testsize = config.access_range;
+    xs1 = xs2 = ys = ys1 = ys2 = 0;
+    for (n = 1; n <= MAXREPEATS; n++)
     {
-        int testsize = 1 << nbits;
-        xs1 = xs2 = ys = ys1 = ys2 = 0;
-        for (n = 1; n <= MAXREPEATS; n++)
+        /*
+         * Select a random offset in order to mitigate the unpredictability
+         * of cache associativity effects when dealing with different
+         * physical memory fragmentation (for PIPT caches). We are reporting
+         * the "best" measured latency, some offsets may be better than
+         * the others.
+         */
+        int testoffs = (rand32() % ((config.memory_size << 20) / testsize)) * testsize;
+
+        t_before = gettime();
+        random_read_test(buffer + testoffs, config.repeats, testsize);
+        t_after = gettime();
+        t = t_after - t_before - t_noaccess;
+        if (t < 0)
+            t = 0;
+
+        xs1 += t;
+        xs2 += t * t;
+
+        if (n == 1 || t < min_t)
+            min_t = t;
+
+        t_before = gettime();
+        random_dual_read_test(buffer + testoffs, config.repeats, testsize);
+        t_after = gettime();
+        t2 = t_after - t_before - t_noaccess2;
+        if (t2 < 0)
+            t2 = 0;
+
+        ys1 += t2;
+        ys2 += t2 * t2;
+
+        if (n == 1 || t2 < min_t2)
+            min_t2 = t2;
+
+        if (n > 2)
         {
-            /*
-             * Select a random offset in order to mitigate the unpredictability
-             * of cache associativity effects when dealing with different
-             * physical memory fragmentation (for PIPT caches). We are reporting
-             * the "best" measured latency, some offsets may be better than
-             * the others.
-             */
-            int testoffs = (rand32() % ((config.memory_size << 20) / testsize)) * testsize;
-
-            t_before = gettime();
-            random_read_test(buffer + testoffs, config.repeats, testsize);
-            t_after = gettime();
-            t = t_after - t_before - t_noaccess;
-            if (t < 0)
-                t = 0;
-
-            xs1 += t;
-            xs2 += t * t;
-
-            if (n == 1 || t < min_t)
-                min_t = t;
-
-            t_before = gettime();
-            random_dual_read_test(buffer + testoffs, config.repeats, testsize);
-            t_after = gettime();
-            t2 = t_after - t_before - t_noaccess2;
-            if (t2 < 0)
-                t2 = 0;
-
-            ys1 += t2;
-            ys2 += t2 * t2;
-
-            if (n == 1 || t2 < min_t2)
-                min_t2 = t2;
-
-            if (n > 2)
-            {
-                xs = sqrt((xs2 * n - xs1 * xs1) / (n * (n - 1)));
-                ys = sqrt((ys2 * n - ys1 * ys1) / (n * (n - 1)));
-                if (xs < min_t / 1000. && ys < min_t2 / 1000.)
-                    break;
-            }
+            xs = sqrt((xs2 * n - xs1 * xs1) / (n * (n - 1)));
+            ys = sqrt((ys2 * n - ys1 * ys1) / (n * (n - 1)));
+            if (xs < min_t / 1000. && ys < min_t2 / 1000.)
+                break;
         }
-        printf("%10d : %6.1f ns          /  %6.1f ns \n", (1 << nbits),
-               min_t * 1000000000. / config.repeats, min_t2 * 1000000000. / config.repeats);
-
-        results["latency_single"] = min_t * 1000000000. / config.repeats;
-        results["latency_double"] = min_t2 * 1000000000. / config.repeats;
     }
+    printf("%10d : %6.1f ns          /  %6.1f ns \n", config.access_range,
+           min_t * 1000000000. / config.repeats, min_t2 * 1000000000. / config.repeats);
+
+    results["latency_single"] = min_t * 1000000000. / config.repeats;
+    results["latency_double"] = min_t2 * 1000000000. / config.repeats;
     memRes.deallocate(buffer, config.memory_size << 20, 1 << 22);
     return 1;
 }
@@ -135,7 +132,9 @@ int main(int argc, char **argv)
     // clang-format off
     benchmark_config.add_options()
         ("memory_size", "Total memory allocated MiB", cxxopts::value<std::vector<int>>()->default_value("1024"))
-        ("access_range", "Range on which memory accesses are done (in Bytes, max 4GiB)", cxxopts::value<std::vector<int>>()->default_value("1024"))
+        ("start_access_range", "Range on which memory accesses are done (in Bytes, max 4GiB)", cxxopts::value<std::vector<int>>()->default_value("1024"))
+        ("end_access_range", "Range on which memory accesses are done (in Bytes, max 4GiB)", cxxopts::value<std::vector<int>>()->default_value("67108864"))
+        ("growth_factor", "Factor with which the access range grows per iteration", cxxopts::value<std::vector<double>>()->default_value("1.1"))
         ("alloc_on_node", "Number of resolves each pointer chase executes", cxxopts::value<std::vector<NodeID>>()->default_value("0"))
         ("run_on_node", "Number of parallel pointer chases per thread", cxxopts::value<std::vector<NodeID>>()->default_value("0"))
         ("repeats", "Number of memory accesses per configuration", cxxopts::value<std::vector<int>>()->default_value("10000000"))
@@ -151,7 +150,9 @@ int main(int argc, char **argv)
     for (auto &runtime_config : benchmark_config.get_runtime_configs())
     {
         auto memory_size = convert<int>(runtime_config["memory_size"]);
-        auto access_range = convert<int>(runtime_config["access_range"]);
+        auto start_access_range = convert<int>(runtime_config["start_access_range"]);
+        auto end_access_range = convert<int>(runtime_config["end_access_range"]);
+        auto growth_factor = convert<double>(runtime_config["growth_factor"]);
         auto alloc_on_node = convert<NodeID>(runtime_config["alloc_on_node"]);
         auto run_on_node = convert<NodeID>(runtime_config["run_on_node"]);
         auto repeats = convert<int>(runtime_config["repeats"]);
@@ -160,7 +161,7 @@ int main(int argc, char **argv)
         auto generate_numa_matrix = convert<bool>(runtime_config["generate_numa_matrix"]);
         LBenchmarkConfig config = {
             memory_size,
-            access_range,
+            start_access_range,
             alloc_on_node,
             run_on_node,
             repeats,
@@ -185,15 +186,19 @@ int main(int argc, char **argv)
                 config.alloc_on_node = alloc_on;
                 config.run_on_node = run_on;
 
-                nlohmann::json results;
-                results["config"]["memory_size"] = config.memory_size;
-                results["config"]["access_range"] = config.access_range;
-                results["config"]["alloc_on_node"] = alloc_on;
-                results["config"]["run_on_node"] = run_on;
-                results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
-                results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
-                latency_bench(config, results);
-                all_results.push_back(results);
+                for (int access_range = start_access_range; access_range <= end_access_range; access_range *= growth_factor)
+                {
+                    config.access_range = access_range;
+                    nlohmann::json results;
+                    results["config"]["memory_size"] = config.memory_size;
+                    results["config"]["access_range"] = access_range;
+                    results["config"]["alloc_on_node"] = alloc_on;
+                    results["config"]["run_on_node"] = run_on;
+                    results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
+                    results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
+                    latency_bench(config, results);
+                    all_results.push_back(results);
+                }
             }
         }
 
