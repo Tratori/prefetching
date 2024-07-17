@@ -179,8 +179,8 @@ int main(int argc, char **argv)
         if (generate_numa_matrix)
         {
             auto numa_manager = Prefetching::get().numa_manager;
-            std::vector<NodeID> alloc_on_nodes = numa_manager.active_nodes;
-            std::vector<NodeID> run_on_nodes = numa_manager.active_nodes;
+            alloc_on_nodes = numa_manager.active_nodes;
+            run_on_nodes = numa_manager.active_nodes;
         }
 
         for (NodeID alloc_on : alloc_on_nodes)
