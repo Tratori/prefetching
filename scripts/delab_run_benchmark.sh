@@ -48,7 +48,7 @@ fi
 
 cd ${HOME}/prefetching
 git reset --hard
-git pull
+git pull --recurse-submodules
 git submodule update
 
 mkdir -p $HOME/prefetching/results/${2}
