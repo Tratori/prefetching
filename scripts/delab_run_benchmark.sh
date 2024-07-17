@@ -63,7 +63,7 @@ for node_conf in ${node_config[@]}; do
 
     echo "submitting task for config ${node_conf}"
     srun -A rabl --partition ${partitions[$node_conf]} -w $node -c ${num_cpus[$node_conf]} \
-      --time=6:00:00 --container-image=${HOME}/ubuntu22_04.sqsh \
+      --time=12:00:00 --container-image=${HOME}/ubuntu22_04.sqsh \
       --container-mounts=${HOME}/prefetching:/prefetching  \
       /prefetching/scripts/delab_benchmark_pipeline.sh ${node_conf} ${1} ${2} ${@:3} &
 done
