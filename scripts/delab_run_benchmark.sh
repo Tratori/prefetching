@@ -15,7 +15,7 @@ declare -A partitions
 declare -A num_cpus
 
 partitions["cx04"]="magic"
-nodenames["cx04"]="cx14"
+nodenames["cx04"]="cx04"
 num_cpus["cx04"]="72"
 
 partitions["cx15"]="magic"
@@ -53,6 +53,7 @@ git submodule update
 
 mkdir -p $HOME/prefetching/results/${2}
 git rev-parse HEAD > $HOME/prefetching/results/${2}/git_sha
+echo "$@"  > $HOME/prefetching/results/${2}/run_arguments
 
 for node_conf in ${node_config[@]}; do
     node=${nodenames[$node_conf]}
@@ -63,7 +64,7 @@ for node_conf in ${node_config[@]}; do
 
     echo "submitting task for config ${node_conf}"
     srun -A rabl --partition ${partitions[$node_conf]} -w $node -c ${num_cpus[$node_conf]} \
-      --time=12:00:00 --container-image=${HOME}/ubuntu22_04.sqsh \
+      --time=24:00:00 --container-image=${HOME}/ubuntu22_04.sqsh \
       --container-mounts=${HOME}/prefetching:/prefetching  \
       /prefetching/scripts/delab_benchmark_pipeline.sh ${node_conf} ${1} ${2} ${@:3} &
 done
