@@ -69,19 +69,18 @@ def plot_batched():
     plt.show()
 
 
+pc_ids = ["pc_local.json", "pc_amd.json", "pc_intel.json"]
 def plot_pc():
-    for id in ids:
-        lfb_bench = import_benchmark(os.path.join("pc_benchmark", "pc_local.json"))
+    for id in pc_ids:
+        lfb_bench = import_benchmark(os.path.join("pc_benchmark", id))
         results = lfb_bench["results"]
         results = sorted(
             results, key=lambda result: result["config"]["num_parallel_pc"]
         )
         num_parallel_pc = [result["config"]["num_parallel_pc"] for result in results]
         runtime = [result["runtime"] for result in results]
-        min_time = min(runtime)
-        # runtime = [
-        #    (p[0] - min_time) / p[1] + min_time for p in zip(runtime, num_parallel_pc)
-        # ]
+        if id == "pc_intel.json":
+            runtime = [p[0] / p[1] for p in zip(runtime, num_parallel_pc)]
 
         sns.pointplot(x=num_parallel_pc, y=runtime, label=id)
     plt.title("LFB Size Benchmark - Pointer Chasing")
@@ -91,7 +90,58 @@ def plot_pc():
     plt.show()
 
 
+pc_access_size_ids = ["pc_amd.json"]
+
+
+def plot_pc_access_size():
+    df = load_results_benchmark_directory_to_pandas(
+        f"{DATA_DIR}/pc_varying_access_size"
+    )
+    print(df)
+    df["config.accessed_cache_lines"] = df["config.accessed_cache_lines"].astype(int)
+    df["config.num_parallel_pc"] = df["config.num_parallel_pc"].astype(int)
+    df["runtime"] = df["runtime"].astype(float)
+
+    unique_ids = df["id"].unique()
+
+    fig, axes = plt.subplots(len(unique_ids), 1, figsize=(12, 8 * len(unique_ids)))
+
+    if len(unique_ids) == 1:
+        axes = [axes]
+
+    # Loop through each unique id and plot
+    for ax, unique_id in zip(axes, unique_ids):
+        # Filter the DataFrame for the current id
+        df_id = df[df["id"] == unique_id]
+
+        # Get unique accessed_cache_lines
+        accessed_cache_lines = df_id["config.accessed_cache_lines"].unique()
+
+        # Loop through each accessed_cache_line and plot
+        for line in accessed_cache_lines:
+            df_line = df_id[df_id["config.accessed_cache_lines"] == line]
+            df_line = df_line.sort_values(by="config.num_parallel_pc")
+
+            ax.plot(
+                df_line["config.num_parallel_pc"],
+                df_line["runtime"],
+                marker="o",
+                label=f"Cache Lines: {line}",
+            )
+
+        ax.set_title(f"Performance for {unique_id}")
+        ax.set_xlabel("Number of Parallel PCs")
+        ax.set_ylabel("Runtime")
+        ax.legend()
+        ax.grid(True)
+
+    plt.tight_layout()
+    plt.subplots_adjust(hspace=0.3)  # Increase the space between subplots
+    plt.show()
+
+
 if __name__ == "__main__":
-    plot_pc()
-    plot_interleaved()
-    plot_batched()
+    plot_pc_access_size()
+    # plot_pc()
+    # plot_interleaved()
+    # plot_batched()

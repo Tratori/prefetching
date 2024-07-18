@@ -13,7 +13,7 @@ def import_benchmark(name):
     return benchmark
 
 
-def load_jsons(directory):
+def load_flat_jsons(directory):
     all_results = []
     for filename in os.listdir(directory):
         if filename.endswith(".json"):
@@ -22,6 +22,23 @@ def load_jsons(directory):
             for result in data["results"]:
                 result["id"] = filename[: -len(".json")]
             all_results.extend(data["results"])
+    return all_results
+
+
+def load_results_jsons(directory):
+    all_results = []
+    for node_folder in os.listdir(directory):
+        node_path = os.path.join(directory, node_folder)
+        if not os.path.isdir(node_path):
+            continue
+
+        for filename in os.listdir(node_path):
+            if filename.endswith(".json"):
+                filepath = os.path.join(node_path, filename)
+                data = import_benchmark(filepath)
+                for result in data["results"]:
+                    result["id"] = node_folder
+                all_results.extend(data["results"])
     return all_results
 
 
@@ -45,8 +62,16 @@ def fill_schema(schema, result, base_key=""):
             schema[key if base_key == "" else base_key + "." + key].append(value)
 
 
-def load_benchmark_directory_to_pandas(path):
-    results = load_jsons(path)
+def load_flat_benchmark_directory_to_pandas(path):
+    results = load_flat_jsons(path)
+    schema = build_1_d_json(results[0])
+    for result in results:
+        fill_schema(schema, result)
+    return pd.DataFrame(schema)
+
+
+def load_results_benchmark_directory_to_pandas(path):
+    results = load_results_jsons(path)
     schema = build_1_d_json(results[0])
     for result in results:
         fill_schema(schema, result)
@@ -54,5 +79,5 @@ def load_benchmark_directory_to_pandas(path):
 
 
 if __name__ == "__main__":
-    df = load_benchmark_directory_to_pandas(f"{DATA_DIR}/lfb_batched")
+    df = load_flat_benchmark_directory_to_pandas(f"{DATA_DIR}/lfb_batched")
     print(df)
