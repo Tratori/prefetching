@@ -87,7 +87,7 @@ nlohmann::json execute_benchmark(HashMap<uint32_t, uint32_t> &openMap, int GROUP
 
 int main(int argc, char **argv)
 {
-    auto manager = Prefetching::get().numa_manager;
+    auto &manager = Prefetching::get().numa_manager;
     auto &benchmark_config = Prefetching::get().runtime_config;
     // clang-format off
     benchmark_config.add_options()

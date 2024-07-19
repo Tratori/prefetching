@@ -61,4 +61,5 @@ void NumaManager::print_topology()
         }
         std::cout << std::endl;
     }
+    numa_bitmask_free(allow_mem_nodes);
 }

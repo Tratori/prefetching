@@ -31,7 +31,7 @@ NumaMemoryResource::NumaMemoryResource(bool use_explicit_huge_pages, bool madvis
     {
         throw std::logic_error("Choose either transparent or explicit huge pages or none.");
     }
-    auto arena_id = uint32_t{0};
+    arena_id = uint32_t{0};
     auto size = sizeof(arena_id);
     if (mallctl("arenas.create", static_cast<void *>(&arena_id), &size, nullptr, 0) != 0)
     {
@@ -73,6 +73,19 @@ NumaMemoryResource::NumaMemoryResource(bool use_explicit_huge_pages, bool madvis
     _allocation_flags = MALLOCX_ARENA(arena_id) | MALLOCX_TCACHE_NONE;
     arena_to_resource_map[arena_id] = this;
 };
+
+NumaMemoryResource::~NumaMemoryResource()
+{
+    std::ostringstream delete_key;
+    delete_key << "arena." << arena_id << ".destroy";
+
+    if (auto ret = mallctl(delete_key.str().c_str(), nullptr, nullptr, nullptr, 0))
+    {
+        std::cerr << "Unable to destroy the arena: " << ret << std::endl;
+    }
+
+    arena_to_resource_map.erase(arena_id);
+}
 
 void *NumaMemoryResource::do_allocate(std::size_t bytes, std::size_t alignment)
 {

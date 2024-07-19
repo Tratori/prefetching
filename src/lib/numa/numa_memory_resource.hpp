@@ -35,6 +35,11 @@ public:
     // Constructor creating an arena for a specific node.
     explicit NumaMemoryResource(bool use_explicit_huge_pages = false, bool madvise_huge_pages = false);
 
+    ~NumaMemoryResource();
+
+    NumaMemoryResource(const NumaMemoryResource &) = delete;
+    NumaMemoryResource &operator=(const NumaMemoryResource &) = delete;
+
     // Methods defined by memory_resource.
     void *do_allocate(std::size_t bytes, std::size_t alignment) override;
 
@@ -58,4 +63,5 @@ protected:
     bool _use_explicit_huge_pages;
     bool _madvise_huge_pages;
     int32_t _allocation_flags{0};
+    int32_t arena_id;
 };
