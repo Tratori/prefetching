@@ -126,6 +126,81 @@ int latency_bench(LBenchmarkConfig &config, auto &results)
     return 1;
 }
 
+size_t resolve(volatile size_t *buffer, size_t resolves, size_t start)
+{
+    size_t count = 0;
+    size_t curr = start;
+    while (count < resolves)
+    {
+        curr = buffer[curr];
+        count++;
+    }
+    return curr;
+}
+
+int pointer_chase(LBenchmarkConfig &config, auto &results)
+{
+    size_t *buffer, *zero_buffer;
+    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[config.run_on_node][0]);
+    auto memRes = StaticNumaMemoryResource(config.alloc_on_node, config.use_explicit_huge_pages, config.madvise_huge_pages);
+
+    buffer = reinterpret_cast<size_t *>(memRes.allocate(config.access_range, 1 << 22));
+    initialize_pointer_chase(buffer, config.access_range / sizeof(size_t));
+
+    zero_buffer = reinterpret_cast<size_t *>(memRes.allocate(sizeof(size_t), 1 << 22));
+    zero_buffer[0] = 0;
+
+    std::chrono::duration<double> no_access;
+    for (int n = 1; n <= MAXREPEATS; n++)
+    {
+        auto start = std::chrono::high_resolution_clock::now();
+        auto r = resolve(zero_buffer, config.repeats, 0);
+        if (r > 1)
+        {
+            throw std::runtime_error("error occurred during resolve. " + std::to_string(r) + " returned.");
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+
+        if (n == 1 || end - start < no_access)
+            no_access = end - start;
+    }
+    printf("\nblock size : single random read");
+    if (!config.madvise_huge_pages && !config.use_explicit_huge_pages)
+        printf(", [NOHUGEPAGE]\n");
+    else if (config.madvise_huge_pages)
+        printf(", [MADV_HUGEPAGE]\n");
+    else if (config.use_explicit_huge_pages)
+        printf(", [MMAP_HUGEPAGE]\n");
+    else
+        throw std::logic_error("hugepage config wrong");
+
+    std::chrono::duration<double> access;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, config.access_range / sizeof(size_t));
+    for (int n = 1; n <= MAXREPEATS; n++)
+    {
+        auto start = std::chrono::high_resolution_clock::now();
+        auto r = resolve(buffer, config.repeats, dis(gen));
+        if (r > config.access_range / sizeof(size_t))
+        {
+            throw std::runtime_error("error occurred during resolve. " + std::to_string(r) + " returned.");
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        if (n == 1 || end - start < access)
+            access = end - start;
+    }
+
+    access = access - no_access;
+
+    printf("%10d : %6.12f ns\n", config.access_range,
+           (access / (double)config.repeats * 1'000'000'000).count());
+
+    results["latency_single"] = access.count() / config.repeats;
+    memRes.deallocate(buffer, config.memory_size << 20, 1 << 22);
+    return 1;
+}
+
 int main(int argc, char **argv)
 {
     auto &benchmark_config = Prefetching::get().runtime_config;
@@ -139,6 +214,7 @@ int main(int argc, char **argv)
         ("alloc_on_node", "Defines on which NUMA node the benchmark allocates memory", cxxopts::value<std::vector<NodeID>>()->default_value("0"))
         ("run_on_node", "Defines on which NUMA node the benchmark is run", cxxopts::value<std::vector<NodeID>>()->default_value("0"))
         ("repeats", "Number of memory accesses per configuration", cxxopts::value<std::vector<int>>()->default_value("10000000"))
+        ("use_pointer_chase", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
         ("generate_numa_matrix", "Automatically iterates over all possible alloc and run configurations", cxxopts::value<std::vector<bool>>()->default_value("false"))
@@ -162,6 +238,7 @@ int main(int argc, char **argv)
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
         auto generate_numa_matrix = convert<bool>(runtime_config["generate_numa_matrix"]);
         auto out = convert<std::string>(runtime_config["out"]);
+        auto use_pointer_chase = convert<bool>(runtime_config["use_pointer_chase"]);
 
         LBenchmarkConfig config = {
             memory_size,
@@ -178,7 +255,7 @@ int main(int argc, char **argv)
 
         if (generate_numa_matrix)
         {
-            auto numa_manager = Prefetching::get().numa_manager;
+            auto &numa_manager = Prefetching::get().numa_manager;
             alloc_on_nodes = numa_manager.active_nodes;
             run_on_nodes = numa_manager.active_nodes;
         }
@@ -200,7 +277,15 @@ int main(int argc, char **argv)
                     results["config"]["run_on_node"] = run_on;
                     results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
                     results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
-                    latency_bench(config, results);
+                    results["config"]["use_pointer_chase"] = use_pointer_chase;
+                    if (!use_pointer_chase)
+                    {
+                        latency_bench(config, results);
+                    }
+                    else
+                    {
+                        pointer_chase(config, results);
+                    }
                     all_results.push_back(results);
                 }
             }
