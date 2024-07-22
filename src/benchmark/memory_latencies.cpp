@@ -196,7 +196,7 @@ int pointer_chase(LBenchmarkConfig &config, auto &results)
     printf("%10d : %6.12f ns\n", config.access_range,
            (access / (double)config.repeats * 1'000'000'000).count());
 
-    results["latency_single"] = access.count() / config.repeats;
+    results["latency_single"] = (access / (double)config.repeats * 1'000'000'000).count();
     memRes.deallocate(buffer, config.memory_size << 20, 1 << 22);
     return 1;
 }
