@@ -25,6 +25,7 @@ struct LFBBenchmarkConfig
     size_t prefetch_distance;
     size_t resolve_cachelines;
     bool use_explicit_huge_pages;
+    bool madvise_huge_pages;
 };
 
 void simple_interleaved(size_t i, size_t number_accesses, auto &config, auto &data, auto &accesses, auto &durations)
@@ -97,7 +98,7 @@ void batched_load(size_t i, size_t number_accesses, auto &config, auto &data, au
 
 void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results)
 {
-    StaticNumaMemoryResource mem_res{0, config.use_explicit_huge_pages};
+    StaticNumaMemoryResource mem_res{0, config.use_explicit_huge_pages, config.madvise_huge_pages};
 
     auto total_memory = config.total_memory * 1024 * 1024; // memory given in MiB
     std::pmr::vector<char> data(total_memory, &mem_res);
@@ -149,7 +150,8 @@ int main(int argc, char **argv)
         ("batch_size", "Number of distinct prefetch instructions before loads start", cxxopts::value<std::vector<size_t>>()->default_value("10"))
         ("prefetch_distance", "number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("10"))
         ("resolve_cachelines", "number of cachelines to load per random resolve", cxxopts::value<std::vector<size_t>>()->default_value("1"))
-        ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("true"));
+        ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
+        ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"));
     // clang-format on
     benchmark_config.parse(argc, argv);
 
@@ -164,6 +166,7 @@ int main(int argc, char **argv)
         auto batch_size = convert<size_t>(runtime_config["batch_size"]);
         auto prefetch_distance = convert<size_t>(runtime_config["prefetch_distance"]);
         auto resolve_cachelines = convert<size_t>(runtime_config["resolve_cachelines"]);
+        auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         LFBBenchmarkConfig config = {
             total_memory,
@@ -173,6 +176,7 @@ int main(int argc, char **argv)
             prefetch_distance,
             resolve_cachelines,
             use_explicit_huge_pages,
+            madvise_huge_pages,
         };
         nlohmann::json results;
         results["config"]["total_memory"] = config.total_memory;
@@ -182,6 +186,7 @@ int main(int argc, char **argv)
         results["config"]["prefetch_distance"] = config.prefetch_distance;
         results["config"]["resolve_cachelines"] = config.resolve_cachelines;
         results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
+        results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
 
         lfb_size_benchmark(config, results);
         all_results.push_back(results);
