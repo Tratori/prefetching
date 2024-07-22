@@ -14,6 +14,8 @@
 #include "numa/static_numa_memory_resource.hpp"
 #include "utils/utils.cpp"
 
+const size_t CACHELINE_SIZE = get_cache_line_size();
+
 struct LFBBenchmarkConfig
 {
     size_t total_memory;
@@ -21,6 +23,7 @@ struct LFBBenchmarkConfig
     size_t num_repetitions;
     size_t batch_size;
     size_t prefetch_distance;
+    size_t resolve_cachelines;
     bool use_explicit_huge_pages;
 };
 
@@ -55,63 +58,61 @@ void batched_load(size_t i, size_t number_accesses, auto &config, auto &data, au
 {
     pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][i]);
     size_t start_access = i * number_accesses;
-    uint8_t dependency = 0;
+    int dummy_dependency = 0; // data has only zeros written to it, so this will effectively do nothing, besides
+                              // adding a data dependency - Hopefully this forces batches to be loaded sequentially.
 
-    auto num_batches = number_accesses / config.batch_size;
-    auto duration = std::chrono::duration<double>{0};
+    const auto num_batches = number_accesses / config.batch_size;
+    const auto data_size = data.size();
+    auto start = std::chrono::high_resolution_clock::now();
     for (size_t b = 0; b < num_batches; ++b)
     {
         auto offset = start_access + (b * config.batch_size); // thread offset
-        auto start = std::chrono::high_resolution_clock::now();
         for (size_t i = 0; i < config.batch_size; ++i)
         {
-            auto random_access = accesses[offset + i];
-            if (random_access + dependency < data.size())
+            auto random_access = accesses[offset + config.prefetch_distance * config.batch_size + i] + dummy_dependency;
+            for (size_t j = 0; j < config.resolve_cachelines; j++)
             {
-                random_access += dependency;
+                __builtin_prefetch(reinterpret_cast<void *>(data.data() + random_access + CACHELINE_SIZE * j), 0, 0);
             }
-            __builtin_prefetch(reinterpret_cast<void *>(data.data() + random_access), 0, 0);
         }
-        uint8_t new_dep = 0;
         for (size_t i = 0; i < config.batch_size; ++i)
         {
-            auto random_access = accesses[offset + i];
-            if (random_access + dependency < data.size())
+            auto random_access = accesses[offset + i] + dummy_dependency;
+            for (size_t j = 0; j < config.resolve_cachelines; j++)
             {
-                random_access += dependency;
+                dummy_dependency += *reinterpret_cast<uint8_t *>(data.data() + random_access + CACHELINE_SIZE * j);
             }
-            new_dep += *reinterpret_cast<uint8_t *>(data.data() + random_access);
         }
-        auto end = std::chrono::high_resolution_clock::now();
-        duration += end - start;
         // LFB CLEAR
         // idle computation
         // noops
-        dependency = new_dep;
     }
-    durations[i] = std::chrono::duration<double>(duration);
+    if (dummy_dependency > data_size)
+    {
+        throw std::runtime_error("new_dep contains wrong dependency: " + std::to_string(dummy_dependency));
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    durations[i] = std::chrono::duration<double>(end - start);
 };
 
 void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results)
 {
     StaticNumaMemoryResource mem_res{0, config.use_explicit_huge_pages};
-    std::random_device rd;
-    std::mt19937 gen(rd());
 
     auto total_memory = config.total_memory * 1024 * 1024; // memory given in MiB
     std::pmr::vector<char> data(total_memory, &mem_res);
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, data.size() - 1 - config.resolve_cachelines * CACHELINE_SIZE);
+
     std::pmr::vector<std::uint64_t> accesses(config.num_repetitions, &mem_res);
-    std::iota(data.begin(), data.end(), 0);
-    std::shuffle(accesses.begin(), accesses.end(), gen);
+    memset(data.data(), total_memory, 0);
 
     const size_t read_size = 8;
     // fill accesses with random numbers from 0 to total_memory (in bytes) - read_size.
-    std::generate(accesses.begin(), accesses.end(), [&, n = 0]() mutable
-                  {
-        std::uint64_t value = n;
-        n = (n + 1) % (total_memory - 1 - read_size);
-        return value; });
-    std::shuffle(accesses.begin(), accesses.end(), gen);
+    std::generate(accesses.begin(), accesses.end(), [&]()
+                  { return dis(gen); });
 
     std::vector<std::jthread> threads;
 
@@ -132,6 +133,7 @@ void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results)
         total_time += duration;
     }
     results["runtime"] = total_time.count();
+    std::cout << "batch_size: " << config.batch_size << " prefetch_distance: " << config.prefetch_distance << " resolve_cache_lines " << config.resolve_cachelines << std::endl;
     std::cout << "took " << total_time.count() << std::endl;
 }
 
@@ -146,6 +148,7 @@ int main(int argc, char **argv)
         ("num_repetitions", "Number of repetitions of the measurement", cxxopts::value<std::vector<size_t>>()->default_value("10000000"))
         ("batch_size", "Number of distinct prefetch instructions before loads start", cxxopts::value<std::vector<size_t>>()->default_value("10"))
         ("prefetch_distance", "number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("10"))
+        ("resolve_cachelines", "number of cachelines to load per random resolve", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("true"));
     // clang-format on
     benchmark_config.parse(argc, argv);
@@ -160,6 +163,7 @@ int main(int argc, char **argv)
         auto num_repetitions = convert<size_t>(runtime_config["num_repetitions"]);
         auto batch_size = convert<size_t>(runtime_config["batch_size"]);
         auto prefetch_distance = convert<size_t>(runtime_config["prefetch_distance"]);
+        auto resolve_cachelines = convert<size_t>(runtime_config["resolve_cachelines"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         LFBBenchmarkConfig config = {
             total_memory,
@@ -167,6 +171,7 @@ int main(int argc, char **argv)
             num_repetitions,
             batch_size,
             prefetch_distance,
+            resolve_cachelines,
             use_explicit_huge_pages,
         };
         nlohmann::json results;
@@ -175,6 +180,7 @@ int main(int argc, char **argv)
         results["config"]["num_repetitions"] = config.num_repetitions;
         results["config"]["batch_size"] = config.batch_size;
         results["config"]["prefetch_distance"] = config.prefetch_distance;
+        results["config"]["resolve_cachelines"] = config.resolve_cachelines;
         results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
 
         lfb_size_benchmark(config, results);
