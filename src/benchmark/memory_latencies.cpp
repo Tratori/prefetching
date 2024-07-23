@@ -182,11 +182,11 @@ int pointer_chase(LBenchmarkConfig &config, auto &results)
     {
         auto start = std::chrono::high_resolution_clock::now();
         auto r = resolve(buffer, config.repeats, dis(gen));
+        auto end = std::chrono::high_resolution_clock::now();
         if (r > config.access_range / sizeof(size_t))
         {
             throw std::runtime_error("error occurred during resolve. " + std::to_string(r) + " returned.");
         }
-        auto end = std::chrono::high_resolution_clock::now();
         if (n == 1 || end - start < access)
             access = end - start;
     }
