@@ -151,7 +151,8 @@ int main(int argc, char **argv)
         ("prefetch_distance", "number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("10"))
         ("resolve_cachelines", "number of cachelines to load per random resolve", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
-        ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"));
+        ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
+        ("out", "Path on which results should be stored", cxxopts::value<std::vector<std::string>>()->default_value("lfb_size.json"));
     // clang-format on
     benchmark_config.parse(argc, argv);
 
@@ -168,6 +169,8 @@ int main(int argc, char **argv)
         auto resolve_cachelines = convert<size_t>(runtime_config["resolve_cachelines"]);
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
+        auto out = convert<std::string>(runtime_config["out"]);
+
         LFBBenchmarkConfig config = {
             total_memory,
             num_threads,
@@ -190,7 +193,7 @@ int main(int argc, char **argv)
 
         lfb_size_benchmark(config, results);
         all_results.push_back(results);
-        auto results_file = std::ofstream{"lfb_size_benchmark.json"};
+        auto results_file = std::ofstream{out};
         nlohmann::json intermediate_json;
         intermediate_json["results"] = all_results;
         results_file << intermediate_json.dump(-1) << std::flush;
