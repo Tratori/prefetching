@@ -7,18 +7,47 @@ import seaborn as sns
 from helper import *
 
 
-pc_access_size_ids = ["pc_amd.json"]
+def plot_memory_latencies_heatmap():
+    df = load_results_benchmark_directory_to_pandas(f"{DATA_DIR}/full_latency_pc")
+    df["config.access_range"] = df["config.access_range"].astype(int)
+    df["config.alloc_on_node"] = df["config.alloc_on_node"].astype(int)
+    df["config.run_on_node"] = df["config.run_on_node"].astype(int)
+    df["config.madvise_huge_pages"] = df["config.madvise_huge_pages"].astype(bool)
+    df["latency_single"] = df["latency_single"].astype(float) * 1000000000
+
+    df = df[df["config.madvise_huge_pages"] == True]
+
+    agg_df = (
+        df.sort_values("config.access_range")
+        .groupby(["id", "config.alloc_on_node", "config.run_on_node"])
+        .last()
+        .reset_index()
+    )
+    print(agg_df)
+    for unique_id in agg_df["id"].unique():
+        pivot_table = agg_df[agg_df["id"] == unique_id].pivot(
+            index="config.run_on_node",
+            columns="config.alloc_on_node",
+            values="latency_single",
+        )
+
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(pivot_table, annot=True, fmt=".2f", cmap="YlGnBu")
+        plt.title(f"Heatmap for ID: {unique_id}")
+        plt.xlabel("config.alloc_on_node")
+        plt.ylabel("config.run_on_node")
+        plt.show()
 
 
 def plot_memory_latencies():
-    df = load_results_benchmark_directory_to_pandas(f"{DATA_DIR}/full_latency")
+    df = load_results_benchmark_directory_to_pandas(f"{DATA_DIR}/full_latency_pc")
     # Assuming your DataFrame is named df
     # Ensure the data types are correct
     df["config.access_range"] = df["config.access_range"].astype(int)
     df["config.alloc_on_node"] = df["config.alloc_on_node"].astype(int)
     df["config.run_on_node"] = df["config.run_on_node"].astype(int)
     df["config.madvise_huge_pages"] = df["config.madvise_huge_pages"].astype(bool)
-    df["latency_single"] = df["latency_single"].astype(float)
+    df["latency_single"] = df["latency_single"].astype(float) * 1000000000
 
     # Get unique ids
     unique_ids = df["id"].unique()
@@ -57,10 +86,12 @@ def plot_memory_latencies():
         ax.legend()
         ax.grid(True)
         ax.set_xscale("log")
+        # ax.set_yscale("log")
 
     plt.tight_layout()
     plt.show()
 
 
 if __name__ == "__main__":
+    plot_memory_latencies_heatmap()
     plot_memory_latencies()
