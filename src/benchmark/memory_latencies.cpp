@@ -28,22 +28,14 @@ struct LBenchmarkConfig
 };
 
 // Adapted from Tinymembench
-int latency_bench(LBenchmarkConfig &config, auto &results)
+int latency_bench(LBenchmarkConfig &config, auto &results, char *buffer)
 {
     double t, t2, t_before, t_after, t_noaccess, t_noaccess2;
     double xs, xs0, xs1, xs2;
     double ys, ys0, ys1, ys2;
     double min_t, min_t2;
     int nbits, n;
-    char *buffer;
-
     pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[config.run_on_node][0]);
-    auto memRes = StaticNumaMemoryResource(config.alloc_on_node, config.use_explicit_huge_pages, config.madvise_huge_pages);
-
-    // TODO: handle alignment correctly
-    buffer = reinterpret_cast<char *>(memRes.allocate(config.memory_size << 20, 1 << 22));
-
-    memset(buffer, 0, config.memory_size << 20);
 
     for (n = 1; n <= MAXREPEATS; n++)
     {
@@ -122,7 +114,6 @@ int latency_bench(LBenchmarkConfig &config, auto &results)
 
     results["latency_single"] = min_t * 1000000000. / config.repeats;
     results["latency_double"] = min_t2 * 1000000000. / config.repeats;
-    memRes.deallocate(buffer, config.memory_size << 20, 1 << 22);
     return 1;
 }
 
@@ -138,9 +129,10 @@ size_t resolve(volatile size_t *buffer, size_t resolves, size_t start)
     return curr;
 }
 
-int pointer_chase(LBenchmarkConfig &config, auto &results)
+int pointer_chase(LBenchmarkConfig &config, auto &results, size_t *buffer)
 {
-    size_t *buffer, *zero_buffer;
+    sleep(5);
+    size_t *zero_buffer;
     pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[config.run_on_node][0]);
     auto memRes = StaticNumaMemoryResource(config.alloc_on_node, config.use_explicit_huge_pages, config.madvise_huge_pages);
 
@@ -262,6 +254,19 @@ int main(int argc, char **argv)
 
         for (NodeID alloc_on : alloc_on_nodes)
         {
+            void *buffer;
+            auto memRes = StaticNumaMemoryResource(config.alloc_on_node, config.use_explicit_huge_pages, config.madvise_huge_pages);
+
+            if (use_pointer_chase)
+            {
+                buffer = memRes.allocate(end_access_range, 1 << 22);
+                memset(buffer, 1, end_access_range);
+            }
+            else
+            {
+                buffer = memRes.allocate(config.memory_size << 20, 1 << 22);
+                memset(buffer, 0, config.memory_size << 20);
+            }
             for (NodeID run_on : run_on_nodes)
             {
                 config.alloc_on_node = alloc_on;
@@ -280,14 +285,22 @@ int main(int argc, char **argv)
                     results["config"]["use_pointer_chase"] = use_pointer_chase;
                     if (!use_pointer_chase)
                     {
-                        latency_bench(config, results);
+                        latency_bench(config, results, reinterpret_cast<char *>(buffer));
                     }
                     else
                     {
-                        pointer_chase(config, results);
+                        pointer_chase(config, results, reinterpret_cast<size_t *>(buffer));
                     }
                     all_results.push_back(results);
                 }
+            }
+            if (use_pointer_chase)
+            {
+                memRes.deallocate(buffer, config.access_range, 1 << 22);
+            }
+            else
+            {
+                memRes.deallocate(buffer, config.memory_size << 20, 1 << 22);
             }
         }
 

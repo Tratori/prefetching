@@ -126,6 +126,10 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
     if (memory_resource->_use_explicit_huge_pages)
     {
         mmap_flags |= MAP_HUGETLB;
+    }
+    if (memory_resource->_use_explicit_huge_pages || memory_resource->_madvise_huge_pages)
+    {
+        // TODO: Somehow tell jemalloc to use at least 2MB large allocations.
         size = align_to_huge_page_size(size);
     }
 
