@@ -28,33 +28,6 @@ struct LFBBenchmarkConfig
     bool madvise_huge_pages;
 };
 
-void simple_interleaved(size_t i, size_t number_accesses, auto &config, auto &data, auto &accesses, auto &durations)
-{
-    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][i]);
-    size_t start_access = i * number_accesses;
-    size_t sum = 0;
-    auto start = std::chrono::high_resolution_clock::now();
-
-    for (size_t j = 0; j < number_accesses; ++j)
-    {
-        __builtin_prefetch(reinterpret_cast<void *>(data.data() + accesses[j]), 0, 3);
-        if (j > config.prefetch_distance)
-        {
-            sum += *reinterpret_cast<uint8_t *>(data.data() + accesses[j - config.prefetch_distance]);
-        }
-    }
-    for (size_t j = config.prefetch_distance; j > 0; --j)
-    {
-        sum += *reinterpret_cast<uint8_t *>(data.data() + accesses[number_accesses - j]);
-    }
-    if (sum == 0)
-    {
-        throw std::runtime_error("sum not correct");
-    }
-    auto end = std::chrono::high_resolution_clock::now();
-    durations[i] = std::chrono::duration<double>(end - start);
-};
-
 void batched_load(size_t i, size_t number_accesses, auto &config, auto &data, auto &accesses, auto &durations)
 {
     pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][i]);
@@ -96,6 +69,31 @@ void batched_load(size_t i, size_t number_accesses, auto &config, auto &data, au
     durations[i] = std::chrono::duration<double>(end - start);
 };
 
+void batched_load_simplified(size_t i, size_t number_accesses, auto &config, auto &data, auto &accesses, auto &durations)
+{
+    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][i]);
+    size_t start_access = i * number_accesses;
+    int dummy_dependency = 0; // data has only zeros written to it, so this will effectively do nothing, besides
+                              // adding a data dependency - Hopefully this forces batches to be loaded sequentially.
+
+    const auto data_size = data.size();
+    auto start = std::chrono::high_resolution_clock::now();
+    for (size_t b = 0; b < number_accesses; ++b)
+    {
+        auto offset = start_access + b; // thread offset
+        auto random_access = accesses[offset + config.prefetch_distance] + dummy_dependency;
+        __builtin_prefetch(reinterpret_cast<void *>(data.data() + random_access), 0, 0);
+        random_access = accesses[offset] + dummy_dependency;
+        dummy_dependency += *reinterpret_cast<uint8_t *>(data.data() + random_access);
+    }
+    if (dummy_dependency > data_size)
+    {
+        throw std::runtime_error("new_dep contains wrong dependency: " + std::to_string(dummy_dependency));
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    durations[i] = std::chrono::duration<double>(end - start);
+};
+
 void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results)
 {
     StaticNumaMemoryResource mem_res{0, config.use_explicit_huge_pages, config.madvise_huge_pages};
@@ -122,7 +120,7 @@ void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results)
     for (size_t i = 0; i < config.num_threads; ++i)
     {
         threads.emplace_back([&, i]()
-                             { batched_load(i, number_accesses_per_thread, config, data, accesses, durations); });
+                             { batched_load_simplified(i, number_accesses_per_thread, config, data, accesses, durations); });
     }
     for (auto &t : threads)
     {
