@@ -9,7 +9,7 @@
 #  - <run_name> must be unique.
 
 
-node_config=("cx04" "cx28")
+node_config=("cx04" "cx28" "nx05")
 declare -A nodenames
 declare -A partitions
 declare -A num_cpus
@@ -17,6 +17,10 @@ declare -A num_cpus
 partitions["cx04"]="magic"
 nodenames["cx04"]="cx04"
 num_cpus["cx04"]="72"
+
+partitions["nx05"]="alchemy"
+nodenames["nx05"]="nx05"
+num_cpus["nx05"]="128"
 
 partitions["cx15"]="magic"
 nodenames["cx15"]="cx15"
