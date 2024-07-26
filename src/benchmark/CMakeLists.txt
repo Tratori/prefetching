@@ -32,3 +32,7 @@ add_executable(memory_latencies memory_latencies.cpp)
 
 target_link_libraries(memory_latencies prefetching tinymembench_lib)
 target_include_directories(memory_latencies PUBLIC ${PROJECT_SOURCE_DIR}/third_party/tinymembench)
+
+add_executable(lfb_full_behavior lfb_full_behavior.cpp)
+
+target_link_libraries(lfb_full_behavior prefetching)
