@@ -22,8 +22,6 @@ struct LFBBenchmarkConfig
     size_t num_threads;
     size_t num_repetitions;
     size_t batch_size;
-    size_t prefetch_distance;
-    size_t resolve_cachelines;
     bool use_explicit_huge_pages;
     bool madvise_huge_pages;
 };
@@ -78,13 +76,16 @@ void batched_load_simplified(size_t i, size_t number_accesses, auto &config, aut
 
     const auto data_size = data.size();
     auto start = std::chrono::high_resolution_clock::now();
-    for (size_t b = 0; b < number_accesses; ++b)
+    const size_t iterations = number_accesses / config.batch_size;
+    for (size_t b = 0; b < iterations; ++b)
     {
-        auto offset = start_access + b; // thread offset
-        auto random_access = accesses[offset + config.prefetch_distance] + dummy_dependency;
-        __builtin_prefetch(reinterpret_cast<void *>(data.data() + random_access), 0, 0);
-        random_access = accesses[offset] + dummy_dependency;
-        dummy_dependency += *reinterpret_cast<uint8_t *>(data.data() + random_access);
+        auto offset = start_access + b * config.batch_size; // thread offset
+        const auto batch_dependency = dummy_dependency;
+        for (size_t j = 0; j < config.batch_size; j++)
+        {
+            const auto random_access = accesses[offset + j] + batch_dependency;
+            dummy_dependency += *reinterpret_cast<uint8_t *>(data.data() + random_access);
+        }
     }
     if (dummy_dependency > data_size)
     {
@@ -99,36 +100,62 @@ void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results, auto
 
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, zero_data.size() - 1 - config.resolve_cachelines * CACHELINE_SIZE);
+    std::uniform_int_distribution<> dis(0, zero_data.size() - 1);
 
     std::vector<std::uint64_t> accesses(config.num_repetitions);
+    std::vector<std::uint64_t> zero_accesses(config.num_repetitions, 0);
 
     const size_t read_size = 8;
     // fill accesses with random numbers from 0 to total_memory (in bytes) - read_size.
     std::generate(accesses.begin(), accesses.end(), [&]()
                   { return dis(gen); });
 
-    std::vector<std::jthread> threads;
+    auto min_time = std::chrono::duration<double>{std::numeric_limits<double>::max()}.count();
 
-    std::vector<std::chrono::duration<double>> durations(config.num_threads);
-    size_t number_accesses_per_thread = config.num_repetitions / config.num_threads;
-    for (size_t i = 0; i < config.num_threads; ++i)
+    for (int i = 0; i < 5; ++i)
     {
-        threads.emplace_back([&, i]()
-                             { batched_load_simplified(i, number_accesses_per_thread, config, zero_data, accesses, durations); });
+        std::vector<std::jthread> baselines_threads;
+
+        std::vector<std::chrono::duration<double>> baseline_durations(config.num_threads);
+        size_t number_accesses_per_thread = config.num_repetitions / config.num_threads;
+        for (size_t i = 0; i < config.num_threads; ++i)
+        {
+            baselines_threads.emplace_back([&, i]()
+                                           { batched_load_simplified(i, number_accesses_per_thread, config, zero_data, zero_accesses, baseline_durations); });
+        }
+        for (auto &t : baselines_threads)
+        {
+            t.join();
+        }
+        auto baseline_total_time = std::chrono::duration<double>{0};
+        for (auto &duration : baseline_durations)
+        {
+            baseline_total_time += duration;
+        }
+
+        std::vector<std::jthread> threads;
+
+        std::vector<std::chrono::duration<double>> durations(config.num_threads);
+        for (size_t i = 0; i < config.num_threads; ++i)
+        {
+            threads.emplace_back([&, i]()
+                                 { batched_load_simplified(i, number_accesses_per_thread, config, zero_data, accesses, durations); });
+        }
+        for (auto &t : threads)
+        {
+            t.join();
+        }
+        auto total_time = std::chrono::duration<double>{0};
+        for (auto &duration : durations)
+        {
+            total_time += duration;
+        }
+        min_time = std::min(min_time, (total_time - baseline_total_time).count());
     }
-    for (auto &t : threads)
-    {
-        t.join();
-    }
-    auto total_time = std::chrono::duration<double>{0};
-    for (auto &duration : durations)
-    {
-        total_time += duration;
-    }
-    results["runtime"] = total_time.count();
-    std::cout << "batch_size: " << config.batch_size << " prefetch_distance: " << config.prefetch_distance << " resolve_cache_lines " << config.resolve_cachelines << std::endl;
-    std::cout << "took " << total_time.count() << std::endl;
+
+    results["runtime"] = min_time;
+    std::cout << "batch_size: " << config.batch_size << std::endl;
+    std::cout << "took " << min_time << std::endl;
 }
 
 int main(int argc, char **argv)
@@ -140,10 +167,8 @@ int main(int argc, char **argv)
         ("total_memory", "Total memory allocated MiB", cxxopts::value<std::vector<size_t>>()->default_value("1024"))
         ("num_threads", "Number of threads running the bench", cxxopts::value<std::vector<size_t>>()->default_value("8"))
         ("num_repetitions", "Number of repetitions of the measurement", cxxopts::value<std::vector<size_t>>()->default_value("10000000"))
-        ("batch_size", "Number of distinct prefetch instructions before loads start", cxxopts::value<std::vector<size_t>>()->default_value("10"))
-        ("start_prefetch_distance", "starting number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("0"))
-        ("end_prefetch_distance", "ending number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("64"))
-        ("resolve_cachelines", "number of cachelines to load per random resolve", cxxopts::value<std::vector<size_t>>()->default_value("1"))
+        ("start_batch_size", "starting number of batch size", cxxopts::value<std::vector<size_t>>()->default_value("1"))
+        ("end_batch_size", "ending number of batch size", cxxopts::value<std::vector<size_t>>()->default_value("64"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
         ("out", "Path on which results should be stored", cxxopts::value<std::vector<std::string>>()->default_value("lfb_size.json"));
@@ -158,10 +183,8 @@ int main(int argc, char **argv)
         auto total_memory = convert<size_t>(runtime_config["total_memory"]);
         auto num_threads = convert<size_t>(runtime_config["num_threads"]);
         auto num_repetitions = convert<size_t>(runtime_config["num_repetitions"]);
-        auto batch_size = convert<size_t>(runtime_config["batch_size"]);
-        auto start_prefetching_distance = convert<size_t>(runtime_config["start_prefetch_distance"]);
-        auto end_prefetching_distance = convert<size_t>(runtime_config["end_prefetch_distance"]);
-        auto resolve_cachelines = convert<size_t>(runtime_config["resolve_cachelines"]);
+        auto start_batch_size = convert<size_t>(runtime_config["start_batch_size"]);
+        auto end_batch_size = convert<size_t>(runtime_config["end_batch_size"]);
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         auto out = convert<std::string>(runtime_config["out"]);
@@ -170,9 +193,7 @@ int main(int argc, char **argv)
             total_memory,
             num_threads,
             num_repetitions,
-            batch_size,
-            0,
-            resolve_cachelines,
+            start_batch_size,
             use_explicit_huge_pages,
             madvise_huge_pages,
         };
@@ -183,19 +204,17 @@ int main(int argc, char **argv)
         std::pmr::vector<char> data(total_memory_bytes, &mem_res);
 
         memset(data.data(), total_memory_bytes, 0);
-        sleep(total_memory / 1.2);
-        for (size_t prefetching_distance = start_prefetching_distance; prefetching_distance <= end_prefetching_distance; prefetching_distance++)
+        // sleep(total_memory / 1.2);
+        for (size_t batch_size = start_batch_size; batch_size <= end_batch_size; batch_size++)
         {
             nlohmann::json results;
             results["config"]["total_memory"] = config.total_memory;
             results["config"]["num_threads"] = config.num_threads;
             results["config"]["num_repetitions"] = config.num_repetitions;
             results["config"]["batch_size"] = config.batch_size;
-            results["config"]["prefetch_distance"] = prefetching_distance;
-            results["config"]["resolve_cachelines"] = config.resolve_cachelines;
             results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
             results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
-            config.prefetch_distance = prefetching_distance;
+            config.batch_size = batch_size;
             lfb_size_benchmark(config, results, data);
             all_results.push_back(results);
         }
