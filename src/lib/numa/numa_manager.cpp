@@ -1,8 +1,65 @@
 #include <stdexcept>
+#include <fstream>
+#include <utility>
+#include <sstream>
 #include "numa.h"
 #include <iostream>
 
 #include "numa_manager.hpp"
+
+std::string trim(const std::string &str)
+{
+    size_t first = str.find_first_not_of(" \t");
+    size_t last = str.find_last_not_of(" \t");
+    return (first == std::string::npos || last == std::string::npos) ? "" : str.substr(first, last - first + 1);
+}
+
+std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &filename = "/proc/cpuinfo")
+{
+    std::vector<std::pair<NodeID, NodeID>> processors;
+    std::ifstream cpuinfo(filename);
+    std::string line;
+    std::pair<NodeID, NodeID> curr_cpu_info = {std::numeric_limits<NodeID>::max(), std::numeric_limits<NodeID>::max()}; // cpu, core
+    if (!cpuinfo.is_open())
+    {
+        throw std::runtime_error("Failed to open " + filename);
+    }
+
+    while (std::getline(cpuinfo, line))
+    {
+        std::string::size_type pos = line.find(':');
+        if (pos == std::string::npos)
+            continue;
+
+        std::string key = trim(line.substr(0, pos));
+        std::string value_str = trim(line.substr(pos + 1));
+
+        if (key == "processor")
+        {
+            if (curr_cpu_info.first != std::numeric_limits<NodeID>::max())
+            {
+                if (curr_cpu_info.second == std::numeric_limits<NodeID>::max())
+                {
+                    throw std::runtime_error("Error reading /proc/cpuinfo: missing core id for processor " + std::to_string(curr_cpu_info.first));
+                }
+                processors.emplace_back(curr_cpu_info);
+            }
+            curr_cpu_info.first = static_cast<NodeID>(std::stoi(value_str));
+            curr_cpu_info.second = std::numeric_limits<NodeID>::max();
+        }
+        else if (key == "core id")
+        {
+            curr_cpu_info.second = static_cast<NodeID>(std::stoi(value_str));
+        }
+    }
+
+    if (curr_cpu_info.first != std::numeric_limits<NodeID>::max())
+    {
+        processors.push_back(curr_cpu_info);
+    }
+
+    return processors;
+}
 
 NumaManager::NumaManager()
 {
@@ -44,6 +101,19 @@ void NumaManager::init_topology_info()
             active_nodes.push_back(numa_node);
         }
     }
+    auto cpu_to_core = cpu_to_core_mappings();
+    NodeID max_core = 0;
+    for (const auto &[cpu, core] : cpu_to_core)
+    {
+        max_core = std::max(max_core, core);
+    }
+    core_id_to_cpu.resize(max_core + 1);
+    cpu_to_core_id.resize(number_cpus);
+    for (const auto &[cpu, core] : cpu_to_core)
+    {
+        core_id_to_cpu[core].emplace_back(cpu);
+        cpu_to_core_id[cpu] = core;
+    }
 }
 
 void NumaManager::print_topology()
@@ -61,5 +131,16 @@ void NumaManager::print_topology()
         }
         std::cout << std::endl;
     }
+
+    for (NodeID core = 0; core < core_id_to_cpu.size(); core++)
+    {
+        std::cout << "Core [" << core << "]: {";
+        for (auto cpu : core_id_to_cpu[core])
+        {
+            std::cout << cpu << " ";
+        }
+        std::cout << "} ";
+    }
+    std::cout << std::endl;
     numa_bitmask_free(allow_mem_nodes);
 }
