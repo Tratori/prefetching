@@ -36,3 +36,7 @@ target_include_directories(memory_latencies PUBLIC ${PROJECT_SOURCE_DIR}/third_p
 add_executable(lfb_full_behavior lfb_full_behavior.cpp)
 
 target_link_libraries(lfb_full_behavior prefetching)
+
+add_executable(lfb_size_smt lfb_size_benchmark_smt.cpp)
+
+target_link_libraries(lfb_size_smt prefetching)
