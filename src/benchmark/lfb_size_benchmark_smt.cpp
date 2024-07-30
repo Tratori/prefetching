@@ -123,13 +123,13 @@ void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results, auto
         for (size_t i = 0; i < config.num_threads; ++i)
         {
             baselines_threads_load.emplace_back([&, i]()
-                                                { load_thread(keep_running, i, numa_manager.core_id_to_cpu[i][1], number_accesses_per_thread, config, zero_data, zero_accesses); });
+                                                { load_thread(keep_running, i, numa_manager.socket_and_core_id_to_cpu[0][i][1], number_accesses_per_thread, config, zero_data, zero_accesses); });
         }
 
         for (size_t i = 0; i < config.num_threads; ++i)
         {
             baselines_threads_measure.emplace_back([&, i]()
-                                                   { measure_thread(i, numa_manager.core_id_to_cpu[i][0], number_accesses_per_thread, config, zero_data, zero_accesses, baseline_durations); });
+                                                   { measure_thread(i, numa_manager.socket_and_core_id_to_cpu[0][i][0], number_accesses_per_thread, config, zero_data, zero_accesses, baseline_durations); });
         }
         for (auto &t : baselines_threads_measure)
         {
@@ -155,13 +155,13 @@ void lfb_size_benchmark(LFBBenchmarkConfig config, nlohmann::json &results, auto
         for (size_t i = 0; i < config.num_threads; ++i)
         {
             load_threads.emplace_back([&, i]()
-                                      { load_thread(keep_running, i, numa_manager.core_id_to_cpu[i][1], number_accesses_per_thread, config, zero_data, load_accesses); });
+                                      { load_thread(keep_running, i, numa_manager.socket_and_core_id_to_cpu[0][i][1], number_accesses_per_thread, config, zero_data, load_accesses); });
         }
 
         for (size_t i = 0; i < config.num_threads; ++i)
         {
             measure_threads.emplace_back([&, i]()
-                                         { measure_thread(i, numa_manager.core_id_to_cpu[i][0], number_accesses_per_thread, config, zero_data, accesses, durations); });
+                                         { measure_thread(i, numa_manager.socket_and_core_id_to_cpu[0][i][0], number_accesses_per_thread, config, zero_data, accesses, durations); });
         }
         for (auto &t : measure_threads)
         {

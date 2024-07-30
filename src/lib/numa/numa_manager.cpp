@@ -14,6 +14,20 @@ std::string trim(const std::string &str)
     return (first == std::string::npos || last == std::string::npos) ? "" : str.substr(first, last - first + 1);
 }
 
+std::string join(const auto &vec, const std::string &delimiter)
+{
+    std::ostringstream oss;
+    if (!vec.empty())
+    {
+        oss << vec[0];
+        for (size_t i = 1; i < vec.size(); ++i)
+        {
+            oss << delimiter << vec[i];
+        }
+    }
+    return oss.str();
+}
+
 std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &filename = "/proc/cpuinfo")
 {
     std::vector<std::pair<NodeID, NodeID>> processors;
@@ -107,11 +121,15 @@ void NumaManager::init_topology_info()
     {
         max_core = std::max(max_core, core);
     }
-    core_id_to_cpu.resize(max_core + 1);
+    socket_and_core_id_to_cpu.resize(number_nodes);
+    for (auto &core_id_to_cpu : socket_and_core_id_to_cpu)
+    {
+        core_id_to_cpu.resize(max_core + 1);
+    }
     cpu_to_core_id.resize(number_cpus);
     for (const auto &[cpu, core] : cpu_to_core)
     {
-        core_id_to_cpu[core].emplace_back(cpu);
+        socket_and_core_id_to_cpu[cpu_to_node[cpu]][core].emplace_back(cpu);
         cpu_to_core_id[cpu] = core;
     }
 }
@@ -125,22 +143,12 @@ void NumaManager::print_topology()
     for (NodeID node = 0; node < number_nodes; node++)
     {
         std::cout << "Node [" << node << "] (mem allowed=" << numa_bitmask_isbitset(allow_mem_nodes, node) << ") : ";
-        for (auto cpu : node_to_cpus[node])
+        for (NodeID core = 0; core < socket_and_core_id_to_cpu[node].size(); core++)
         {
-            std::cout << cpu << " ";
+            std::cout << "{" << join(socket_and_core_id_to_cpu[node][core], ",") << "} ";
         }
         std::cout << std::endl;
     }
 
-    for (NodeID core = 0; core < core_id_to_cpu.size(); core++)
-    {
-        std::cout << "Core [" << core << "]: {";
-        for (auto cpu : core_id_to_cpu[core])
-        {
-            std::cout << cpu << " ";
-        }
-        std::cout << "} ";
-    }
-    std::cout << std::endl;
     numa_bitmask_free(allow_mem_nodes);
 }
