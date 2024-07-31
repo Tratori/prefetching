@@ -5,7 +5,6 @@
 #include <thread>
 #include <iostream>
 #include <fstream>
-#include <xmmintrin.h>
 #include <atomic>
 #include <algorithm>
 

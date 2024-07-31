@@ -1,7 +1,6 @@
 #include <iostream>
 #include <list>
 #include <vector>
-#include <xmmintrin.h>
 #include <coroutine>
 #include <iterator>
 #include <assert.h>

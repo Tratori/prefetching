@@ -9,7 +9,6 @@
 #include <thread>
 #include <iostream>
 #include <fstream>
-#include <xmmintrin.h>
 
 #include <nlohmann/json.hpp>
 
