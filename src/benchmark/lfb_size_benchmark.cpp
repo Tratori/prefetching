@@ -26,7 +26,7 @@ struct LFBBenchmarkConfig
 
 void batched_load(size_t i, size_t number_accesses, auto &config, auto &data, auto &accesses, auto &durations)
 {
-    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][i]);
+    pin_to_cpu(Prefetching::get().numa_manager.node_to_available_cpus[0][i]);
     size_t start_access = i * number_accesses;
     int dummy_dependency = 0; // data has only zeros written to it, so this will effectively do nothing, besides
                               // adding a data dependency - Hopefully this forces batches to be loaded sequentially.
@@ -67,7 +67,7 @@ void batched_load(size_t i, size_t number_accesses, auto &config, auto &data, au
 
 void batched_load_simplified(size_t i, size_t number_accesses, auto &config, auto &data, auto &accesses, auto &durations)
 {
-    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][i]);
+    pin_to_cpu(Prefetching::get().numa_manager.node_to_available_cpus[0][i]);
     size_t start_access = i * number_accesses;
     int dummy_dependency = 0; // data has only zeros written to it, so this will effectively do nothing, besides
                               // adding a data dependency - Hopefully this forces batches to be loaded sequentially.

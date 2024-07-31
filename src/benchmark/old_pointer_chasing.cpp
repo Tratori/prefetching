@@ -36,7 +36,7 @@ struct PBCBenchmarkConfig
 size_t COMPUTE_FACTOR = 32U;
 void pointer_block_chase(size_t thread_id, PBCBenchmarkConfig &config, auto &data, auto &durations)
 {
-    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][thread_id]);
+    pin_to_cpu(Prefetching::get().numa_manager.node_to_available_cpus[0][thread_id]);
     uint8_t dependency = 0;
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -107,7 +107,7 @@ struct PCBenchmarkConfig
 
 void pointer_chase(size_t thread_id, auto &config, auto &data, auto &durations)
 {
-    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[0][thread_id]);
+    pin_to_cpu(Prefetching::get().numa_manager.node_to_available_cpus[0][thread_id]);
     uint8_t dependency = 0;
     std::random_device rd;
     std::mt19937 gen(rd());

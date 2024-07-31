@@ -34,7 +34,7 @@ int latency_bench(LBenchmarkConfig &config, auto &results, char *buffer)
     double ys, ys0, ys1, ys2;
     double min_t, min_t2;
     int nbits, n;
-    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[config.run_on_node][0]);
+    pin_to_cpu(Prefetching::get().numa_manager.node_to_available_cpus[config.run_on_node][0]);
 
     for (n = 1; n <= MAXREPEATS; n++)
     {
@@ -132,7 +132,7 @@ int pointer_chase(LBenchmarkConfig &config, auto &results, size_t *buffer)
 {
     sleep(1);
     size_t *zero_buffer;
-    pin_to_cpu(Prefetching::get().numa_manager.node_to_cpus[config.run_on_node][0]);
+    pin_to_cpu(Prefetching::get().numa_manager.node_to_available_cpus[config.run_on_node][0]);
     auto memRes = StaticNumaMemoryResource(config.alloc_on_node, config.use_explicit_huge_pages, config.madvise_huge_pages);
 
     initialize_pointer_chase(buffer, config.access_range / sizeof(size_t));

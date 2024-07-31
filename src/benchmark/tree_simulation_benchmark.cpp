@@ -635,7 +635,7 @@ void benchmark_tree_simulation(TreeSimulationConfig &config)
 
     start = std::chrono::high_resolution_clock::now();
     threads.clear();
-    auto node_2_cpus = Prefetching::get().numa_manager.node_to_cpus;
+    auto node_2_cpus = Prefetching::get().numa_manager.node_to_available_cpus;
     for (size_t t = 0; t < config.num_threads / config.numa_nodes; ++t) // We effectively schedule config.numa_nodes threads per run here.
     {
         std::vector<NodeID> cpus(config.numa_nodes, 0);

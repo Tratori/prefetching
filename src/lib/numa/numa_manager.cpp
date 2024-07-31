@@ -63,10 +63,7 @@ std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &f
                     warn_single_threaded();
                     curr_cpu_info.second = curr_cpu_info.first;
                 }
-                if (numa_bitmask_isbitset(numa_all_cpus_ptr, curr_cpu_info.first))
-                {
-                    processors.emplace_back(curr_cpu_info);
-                }
+                processors.emplace_back(curr_cpu_info);
             }
             curr_cpu_info.first = static_cast<NodeID>(std::stoi(value_str));
             curr_cpu_info.second = std::numeric_limits<NodeID>::max();
@@ -84,10 +81,7 @@ std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &f
             warn_single_threaded();
             curr_cpu_info.second = curr_cpu_info.first;
         }
-        if (numa_bitmask_isbitset(numa_all_cpus_ptr, curr_cpu_info.first))
-        {
-            processors.emplace_back(curr_cpu_info);
-        }
+        processors.emplace_back(curr_cpu_info);
     }
 
     return processors;
@@ -118,15 +112,20 @@ void NumaManager::init_topology_info()
     number_nodes = numa_num_configured_nodes();
     cpu_to_node.resize(number_cpus, UNDEFINED_NODE);
     node_to_cpus.resize(number_nodes);
+    node_to_available_cpus.resize(number_nodes);
     for (NodeID numa_cpu = 0; numa_cpu < number_cpus; ++numa_cpu)
     {
         NodeID numa_node = numa_node_of_cpu(numa_cpu);
         cpu_to_node[numa_cpu] = numa_node;
         node_to_cpus[numa_node].push_back(numa_cpu);
+        if (numa_bitmask_isbitset(numa_all_cpus_ptr, numa_cpu))
+        {
+            node_to_available_cpus[numa_node].push_back(numa_cpu);
+        }
     }
     for (NodeID numa_node = 0; numa_node < number_nodes; ++numa_node)
     {
-        if (node_to_cpus[numa_node].size())
+        if (node_to_available_cpus[numa_node].size())
         {
             active_nodes.push_back(numa_node);
         }
@@ -138,14 +137,21 @@ void NumaManager::init_topology_info()
         max_core = std::max(max_core, core);
     }
     socket_and_core_id_to_cpu.resize(number_nodes);
-    for (auto &core_id_to_cpu : socket_and_core_id_to_cpu)
+    socket_and_core_id_to_available_cpu.resize(number_nodes);
+    for (NodeID node = 0; node < socket_and_core_id_to_available_cpu.size(); node++)
     {
-        core_id_to_cpu.resize(max_core + 1);
+        socket_and_core_id_to_available_cpu[node].resize(max_core + 1);
+        socket_and_core_id_to_cpu[node].resize(max_core + 1);
     }
     cpu_to_core_id.resize(number_cpus);
     for (const auto &[cpu, core] : cpu_to_core)
     {
         socket_and_core_id_to_cpu[cpu_to_node[cpu]][core].emplace_back(cpu);
+        if (numa_bitmask_isbitset(numa_all_cpus_ptr, cpu))
+        {
+            socket_and_core_id_to_available_cpu[cpu_to_node[cpu]][core].emplace_back(cpu);
+        }
+
         cpu_to_core_id[cpu] = core;
     }
 }
@@ -161,7 +167,7 @@ void NumaManager::print_topology()
         std::cout << "Node [" << node << "] (mem allowed=" << numa_bitmask_isbitset(allow_mem_nodes, node) << ") : ";
         for (NodeID core = 0; core < socket_and_core_id_to_cpu[node].size(); core++)
         {
-            std::cout << "{" << join(socket_and_core_id_to_cpu[node][core], ",") << "} ";
+            std::cout << "{" << join(socket_and_core_id_to_available_cpu[node][core], ",") << "/" << join(socket_and_core_id_to_cpu[node][core], ",") << "} ";
         }
         std::cout << std::endl;
     }
