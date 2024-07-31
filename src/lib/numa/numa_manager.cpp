@@ -63,7 +63,10 @@ std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &f
                     warn_single_threaded();
                     curr_cpu_info.second = curr_cpu_info.first;
                 }
-                processors.emplace_back(curr_cpu_info);
+                if (numa_bitmask_isbitset(numa_all_cpus_ptr, curr_cpu_info.second))
+                {
+                    processors.emplace_back(curr_cpu_info);
+                }
             }
             curr_cpu_info.first = static_cast<NodeID>(std::stoi(value_str));
             curr_cpu_info.second = std::numeric_limits<NodeID>::max();
@@ -81,7 +84,10 @@ std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &f
             warn_single_threaded();
             curr_cpu_info.second = curr_cpu_info.first;
         }
-        processors.push_back(curr_cpu_info);
+        if (numa_bitmask_isbitset(numa_all_cpus_ptr, curr_cpu_info.second))
+        {
+            processors.emplace_back(curr_cpu_info);
+        }
     }
 
     return processors;
