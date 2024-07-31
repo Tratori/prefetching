@@ -6,7 +6,12 @@ set(CMAKE_CXX_STANDARD 20)
 
 
 message(STATUS "ARCH: ${CMAKE_SYSTEM_PROCESSOR}")
-set(ARCH CMAKE_SYSTEM_PROCESSOR)
+if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
+    add_definitions(-DX86_64)
+elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
+    add_definitions(-DAARCH64)
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     add_custom_target(generate_asm
         COMMAND ${CMAKE_CXX_COMPILER} -S -fverbose-asm -o prefetch_latency.s ${CMAKE_SOURCE_DIR}/src/benchmark/prefetch_latency.cpp
