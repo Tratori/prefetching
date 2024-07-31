@@ -59,7 +59,7 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
             sum = sum + *padding_page_pointer;
         }
         //  ensure(sum == 0, "padding page area contained != 0");
-        _mm_lfence();
+        lfence();
         // prefetch actual pointers
         asm volatile("" ::: "memory");
 

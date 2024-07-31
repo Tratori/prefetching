@@ -46,6 +46,15 @@ inline void lfence()
 #endif
 }
 
+inline void sfence()
+{
+#if defined(X86_64)
+    _mm_sfence();
+#elif defined(AARCH64)
+    std::atomic_thread_fence(std::memory_order::release);
+#endif
+}
+
 const uint64_t l1_prefetch_latency = 44;
 
 static uint64_t sampling_counter = 0;

@@ -51,7 +51,7 @@ void pointer_block_chase(size_t thread_id, PBCBenchmarkConfig &config, auto &dat
     {
         __builtin_prefetch(reinterpret_cast<void *>(reinterpret_cast<char *>(data.data()) + curr_base_cache_line_offset), 0, 0);
 
-        _mm_lfence();
+        lfence();
         asm volatile("" ::: "memory");
         auto start = std::chrono::steady_clock::now();
         asm volatile("" ::: "memory");

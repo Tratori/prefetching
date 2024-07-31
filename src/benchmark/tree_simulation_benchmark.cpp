@@ -295,7 +295,7 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
                         {
                             tf->running_coroutines[i] = Remote;
                             thread_frames[tf->coroutines[i].load()->next_node].load()->coroutines[i] = tf->coroutines[i].load();
-                            _mm_sfence();
+                            sfence();
                             thread_frames[tf->coroutines[i].load()->next_node].load()->running_coroutines[i] = Resumable;
                         }
                     }
@@ -335,7 +335,7 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
                         {
                             tf->running_coroutines[i] = Empty;
                             thread_frames[tf->coroutines[i].load()->next_node].load()->coroutines[i] = tf->coroutines[i].load();
-                            _mm_sfence();
+                            sfence();
                             thread_frames[tf->coroutines[i].load()->next_node].load()->running_coroutines[i] = Resumable;
                         }
                     }
@@ -343,7 +343,7 @@ void scheduler_thread_function(NodeID cpu, std::vector<std::atomic<thread_frame 
                     {
                         size_t original_node = i / config.coroutines;
                         tf->running_coroutines[i] = Empty;
-                        _mm_sfence();
+                        sfence();
                         thread_frames[original_node].load()->running_coroutines[i] = Resumable;
                     }
                     break;
