@@ -10,7 +10,7 @@ target_link_libraries(hashmap_benchmark hashmap prefetching)
 
 add_executable(prefetch_latency prefetch_latency.cpp)
 
-target_link_libraries(prefetch_latency nlohmann_json::nlohmann_json)
+target_link_libraries(prefetch_latency utils nlohmann_json::nlohmann_json)
 
 add_executable(random_read_benchmark random_read_benchmark.cpp)
 

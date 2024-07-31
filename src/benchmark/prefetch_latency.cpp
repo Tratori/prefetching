@@ -1,10 +1,12 @@
 #include <stdint.h>
-#include <x86intrin.h>
+
 #include <random>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <map>
 #include <fstream>
+
+#include "../lib/utils/utils.cpp"
 
 const uint64_t GIBIBYTE = 1024 * 1024 * 1024;
 const uint64_t MIBIBYTE = 1024 * 1024;
@@ -15,27 +17,19 @@ const uint64_t DATA_SIZE = GIBIBYTE;
 
 uint8_t data[DATA_SIZE];
 
-void wait_cycles(uint64_t x)
-{
-    for (int i = 0; i < x; ++i)
-    {
-        _mm_pause();
-    };
-}
-
 uint64_t measure_prefetch_latency(const void *ptr)
 {
     uint64_t start, end;
 
-    start = __rdtsc();
-    _mm_lfence();
+    start = read_cycles();
+    lfence();
     asm volatile("" ::: "memory");
 
     __builtin_prefetch(ptr, 0, 3); // Prefetch to L1 cache
 
     asm volatile("" ::: "memory");
-    _mm_lfence();
-    end = __rdtsc();
+    lfence();
+    end = read_cycles();
 
     return end - start;
 }
@@ -45,13 +39,13 @@ uint64_t measure_load_latency(void *ptr, volatile uint64_t &dummy_sum)
     uint64_t start, end;
 
     start = __rdtsc();
-    _mm_lfence();
+    lfence();
     asm volatile("" ::: "memory");
 
     dummy_sum = dummy_sum + *reinterpret_cast<uint64_t *>(ptr);
 
     asm volatile("" ::: "memory");
-    _mm_lfence();
+    lfence();
     end = __rdtsc();
 
     return end - start;

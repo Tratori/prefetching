@@ -1,7 +1,6 @@
 #include "prefetching.hpp"
 
 #include <random>
-#include <x86intrin.h>
 #include <chrono>
 #include <thread>
 #include <iostream>

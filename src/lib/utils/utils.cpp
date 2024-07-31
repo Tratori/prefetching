@@ -1,5 +1,9 @@
 #include <stdint.h>
+#if ARCH == x86_64
 #include <x86intrin.h>
+#elif ARCH == arm64
+#include <atomic>
+#endif
 #include <vector>
 #include <random>
 #include <chrono>
@@ -10,6 +14,38 @@
 #include "profiler.cpp"
 #include "../types.hpp"
 
+void wait_cycles(uint64_t x)
+{
+    for (int i = 0; i < x; ++i)
+    {
+#if ARCH == x86_64
+        _mm_pause();
+#elif ARCH == arm64
+        __asm__ volatile("yield");
+#endif
+    };
+}
+
+inline unsigned long long read_cycles()
+{
+#if ARCH == x86_64
+    return __rdtsc();
+#elif ARCH == arm64
+    uint64_t cycles;
+    asm volatile("mrs %0, cntvct_el0" : "=r"(cycles));
+    return cycles;
+#endif
+}
+
+inline void lfence()
+{
+#if ARCH == x86_64
+    _mm_lfence();
+#elif ARCH == arm64
+    std::atomic_thread_fence(std::memory_order::consume);
+#endif
+}
+
 const uint64_t l1_prefetch_latency = 44;
 
 static uint64_t sampling_counter = 0;
@@ -18,15 +54,15 @@ inline bool is_in_tlb_and_prefetch(const void *ptr)
 {
     uint64_t start, end;
 
-    start = __rdtsc();
-    _mm_lfence();
+    start = read_cycles();
+    lfence();
     asm volatile("" ::: "memory");
 
     __builtin_prefetch(ptr, 0, 3); // Prefetch to L1 cache
 
     asm volatile("" ::: "memory");
-    _mm_lfence();
-    end = __rdtsc();
+    lfence();
+    end = read_cycles();
 
     // sampling_counter++;
     // if ((sampling_counter & 0xFFFF) == 0xFFFF)
@@ -42,15 +78,15 @@ inline bool is_in_tlb_prefetch_profile(const void *ptr, size_t &step, PrefetchPr
     uint64_t start, end;
     if (step == 1)
     {
-        start = __rdtsc();
-        _mm_lfence();
+        start = read_cycles();
+        lfence();
         asm volatile("" ::: "memory");
 
         __builtin_prefetch(ptr, 0, 3); // Prefetch to L1 cache
 
         asm volatile("" ::: "memory");
-        _mm_lfence();
-        end = __rdtsc();
+        lfence();
+        end = read_cycles();
 
         bool is_hit = (end - start) <= l1_prefetch_latency;
         profiler.note_cache_hit_or_miss(is_hit, step);

@@ -5,9 +5,8 @@ project(Prefetch)
 set(CMAKE_CXX_STANDARD 20)
 
 
-add_compile_options(-msse)
-
-
+message(STATUS "ARCH: ${CMAKE_SYSTEM_PROCESSOR}")
+set(ARCH CMAKE_SYSTEM_PROCESSOR)
 if(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     add_custom_target(generate_asm
         COMMAND ${CMAKE_CXX_COMPILER} -S -fverbose-asm -o prefetch_latency.s ${CMAKE_SOURCE_DIR}/src/benchmark/prefetch_latency.cpp

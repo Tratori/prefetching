@@ -1,6 +1,5 @@
 #include <vector>
 #include <coroutine>
-#include <x86intrin.h>
 
 #include "random_access.hpp"
 #include "coroutine.hpp"
