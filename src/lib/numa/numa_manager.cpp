@@ -113,18 +113,16 @@ NumaManager::NumaManager()
 
 void NumaManager::init_topology_info()
 {
-    number_cpus = numa_num_task_cpus();
-    number_nodes = numa_num_task_nodes();
+    number_available_cpus = numa_num_task_cpus();
+    number_cpus = numa_num_configured_cpus();
+    number_nodes = numa_num_configured_nodes();
     cpu_to_node.resize(number_cpus, UNDEFINED_NODE);
     node_to_cpus.resize(number_nodes);
     for (NodeID numa_cpu = 0; numa_cpu < number_cpus; ++numa_cpu)
     {
-        if (numa_bitmask_isbitset(numa_all_cpus_ptr, numa_cpu))
-        {
-            NodeID numa_node = numa_node_of_cpu(numa_cpu);
-            cpu_to_node[numa_cpu] = numa_node;
-            node_to_cpus[numa_node].push_back(numa_cpu);
-        }
+        NodeID numa_node = numa_node_of_cpu(numa_cpu);
+        cpu_to_node[numa_cpu] = numa_node;
+        node_to_cpus[numa_node].push_back(numa_cpu);
     }
     for (NodeID numa_node = 0; numa_node < number_nodes; ++numa_node)
     {

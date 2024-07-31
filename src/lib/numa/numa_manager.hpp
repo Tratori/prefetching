@@ -10,6 +10,7 @@ class NumaManager
 {
 public:
     NodeID number_cpus;
+    NodeID number_available_cpus;
     NodeID number_nodes;
     std::vector<std::vector<NodeID>> node_to_cpus;
     std::vector<NodeID> cpu_to_node;
