@@ -56,7 +56,7 @@ arch["cx28"]="x86_64"
 
 partitions["ca06"]="magic"
 nodenames["ca06"]="ca06"
-num_cpus["ca06"]="48"
+num_cpus["ca06"]="19" # TODO make this 48 somehow
 arch["ca06"]="aarch64"
 
 
