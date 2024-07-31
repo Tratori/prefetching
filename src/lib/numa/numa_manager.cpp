@@ -31,7 +31,7 @@ std::string join(const auto &vec, const std::string &delimiter)
 void warn_single_threaded()
 {
     static const auto runOnce = []
-    { std::cout << "\033[1;31m[WARNING] /proc/cpuinfo: missing core id for processor. Assuming core_id = processor_id (no multi threading).\033[0m" ; return true; }();
+    { std::cout << "\033[1;31m[WARNING] /proc/cpuinfo: missing core id for processor. Assuming core_id = processor_id (no multi threading).\033[0m" << std::endl; return true; }();
 }
 
 std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &filename = "/proc/cpuinfo")
