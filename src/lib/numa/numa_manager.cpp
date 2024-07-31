@@ -28,6 +28,12 @@ std::string join(const auto &vec, const std::string &delimiter)
     return oss.str();
 }
 
+void warn_single_threaded()
+{
+    static const auto runOnce = []
+    { std::cout << "\033[1;31m[WARNING] /proc/cpuinfo: missing core id for processor. Assuming core_id = processor_id (no multi threading).\033[0m" ; return true; }();
+}
+
 std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &filename = "/proc/cpuinfo")
 {
     std::vector<std::pair<NodeID, NodeID>> processors;
@@ -54,7 +60,8 @@ std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &f
             {
                 if (curr_cpu_info.second == std::numeric_limits<NodeID>::max())
                 {
-                    throw std::runtime_error("Error reading /proc/cpuinfo: missing core id for processor " + std::to_string(curr_cpu_info.first));
+                    warn_single_threaded();
+                    curr_cpu_info.second = curr_cpu_info.first;
                 }
                 processors.emplace_back(curr_cpu_info);
             }
@@ -69,6 +76,11 @@ std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &f
 
     if (curr_cpu_info.first != std::numeric_limits<NodeID>::max())
     {
+        if (curr_cpu_info.second == std::numeric_limits<NodeID>::max())
+        {
+            warn_single_threaded();
+            curr_cpu_info.second = curr_cpu_info.first;
+        }
         processors.push_back(curr_cpu_info);
     }
 
