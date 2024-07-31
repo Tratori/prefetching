@@ -63,7 +63,7 @@ std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &f
                     warn_single_threaded();
                     curr_cpu_info.second = curr_cpu_info.first;
                 }
-                if (numa_bitmask_isbitset(numa_all_cpus_ptr, curr_cpu_info.second))
+                if (numa_bitmask_isbitset(numa_all_cpus_ptr, curr_cpu_info.first))
                 {
                     processors.emplace_back(curr_cpu_info);
                 }
@@ -84,7 +84,7 @@ std::vector<std::pair<NodeID, NodeID>> cpu_to_core_mappings(const std::string &f
             warn_single_threaded();
             curr_cpu_info.second = curr_cpu_info.first;
         }
-        if (numa_bitmask_isbitset(numa_all_cpus_ptr, curr_cpu_info.second))
+        if (numa_bitmask_isbitset(numa_all_cpus_ptr, curr_cpu_info.first))
         {
             processors.emplace_back(curr_cpu_info);
         }
@@ -115,14 +115,14 @@ void NumaManager::init_topology_info()
 {
     number_cpus = numa_num_task_cpus();
     number_nodes = numa_num_task_nodes();
-    cpu_to_node.reserve(number_cpus);
+    cpu_to_node.resize(number_cpus, UNDEFINED_NODE);
     node_to_cpus.resize(number_nodes);
     for (NodeID numa_cpu = 0; numa_cpu < number_cpus; ++numa_cpu)
     {
         if (numa_bitmask_isbitset(numa_all_cpus_ptr, numa_cpu))
         {
             NodeID numa_node = numa_node_of_cpu(numa_cpu);
-            cpu_to_node.push_back(numa_node);
+            cpu_to_node[numa_cpu] = numa_node;
             node_to_cpus[numa_node].push_back(numa_cpu);
         }
     }
