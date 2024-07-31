@@ -38,7 +38,7 @@ uint64_t measure_load_latency(void *ptr, volatile uint64_t &dummy_sum)
 {
     uint64_t start, end;
 
-    start = __rdtsc();
+    start = read_cycles();
     lfence();
     asm volatile("" ::: "memory");
 
@@ -46,7 +46,7 @@ uint64_t measure_load_latency(void *ptr, volatile uint64_t &dummy_sum)
 
     asm volatile("" ::: "memory");
     lfence();
-    end = __rdtsc();
+    end = read_cycles();
 
     return end - start;
 }
