@@ -1,7 +1,7 @@
 #include <stdint.h>
 #if ARCH == x86_64
 #include <x86intrin.h>
-#elif ARCH == arm64
+#elif ARCH == aarch64
 #include <atomic>
 #endif
 #include <vector>
@@ -20,7 +20,7 @@ void wait_cycles(uint64_t x)
     {
 #if ARCH == x86_64
         _mm_pause();
-#elif ARCH == arm64
+#elif ARCH == aarch64
         __asm__ volatile("yield");
 #endif
     };
@@ -30,7 +30,7 @@ inline unsigned long long read_cycles()
 {
 #if ARCH == x86_64
     return __rdtsc();
-#elif ARCH == arm64
+#elif ARCH == aarch64
     uint64_t cycles;
     asm volatile("mrs %0, cntvct_el0" : "=r"(cycles));
     return cycles;
@@ -41,7 +41,7 @@ inline void lfence()
 {
 #if ARCH == x86_64
     _mm_lfence();
-#elif ARCH == arm64
+#elif ARCH == aarch64
     std::atomic_thread_fence(std::memory_order::consume);
 #endif
 }
