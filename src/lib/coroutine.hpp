@@ -1,6 +1,6 @@
 #pragma once
 #include <coroutine>
-
+#include <cstdint>
 
 struct promise;
 
