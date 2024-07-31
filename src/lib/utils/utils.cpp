@@ -242,7 +242,7 @@ auto findMedian(auto &container,
                     container.begin() + (n - 1) / 2,
                     container.end());
 
-        return container[(n - 1) / 2] + container[n / 2] / 2.0;
+        return (container[(n - 1) / 2] + container[n / 2]) / 2.0;
     }
 
     else
