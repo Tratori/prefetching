@@ -14,7 +14,6 @@
 
 const size_t CACHELINE_SIZE = get_cache_line_size();
 const size_t ACTUAL_PAGE_SIZE = get_page_size();
-const auto CLOCK_MIN_DURATION = get_steady_clock_min_duration(1'000'000);
 
 struct PCBenchmarkConfig
 {
@@ -36,15 +35,10 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> uniform_dis(0, data.size() - 1);
 
-    std::vector<char *> curr_pointers;
+    std::vector<uint64_t> curr_pointers;
     for (int i = 0; i < config.num_parallel_pc; ++i)
     {
-        auto random_pointer = reinterpret_cast<size_t>(data.data() + uniform_dis(gen)) & ~(CACHELINE_SIZE - 1);
-        if (random_pointer & (ACTUAL_PAGE_SIZE - 1) < CACHELINE_SIZE)
-        {
-            random_pointer += CACHELINE_SIZE;
-        }
-        curr_pointers.push_back(reinterpret_cast<char *>(random_pointer));
+        curr_pointers.push_back(uniform_dis(gen));
     }
 
     const auto number_repetitions = config.num_resolves / config.num_parallel_pc / config.accessed_cache_lines;
@@ -52,14 +46,6 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
 
     for (size_t r = 0; r < number_repetitions; r++)
     {
-        // Trigger TLB misses by accessing start of page.
-        volatile size_t sum = 0;
-        for (auto random_pointer : curr_pointers)
-        {
-            auto padding_page_pointer = reinterpret_cast<char *>(reinterpret_cast<size_t>(random_pointer) & ~(ACTUAL_PAGE_SIZE - 1));
-            sum = sum + *padding_page_pointer;
-        }
-        //  ensure(sum == 0, "padding page area contained != 0");
         lfence();
         // prefetch actual pointers
         asm volatile("" ::: "memory");
@@ -71,7 +57,7 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
         {
             for (size_t i = 0; i < config.accessed_cache_lines; ++i)
             {
-                __builtin_prefetch(reinterpret_cast<void *>(random_pointer + CACHELINE_SIZE * i), 0, 0); // This can actually access wrong addresses, but prefetch should be allowed to do that.
+                __builtin_prefetch(reinterpret_cast<void *>(data.data() + random_pointer + CACHELINE_SIZE * i), 0, 0); // This can actually access wrong addresses, but prefetch should be allowed to do that.
             }
         }
         asm volatile("" ::: "memory");
@@ -84,17 +70,16 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
         const size_t WORK_FACTOR = 8;
         for (auto &random_pointer : curr_pointers)
         {
-            random_pointer = *reinterpret_cast<char **>(random_pointer);
+            random_pointer = *(data.data() + random_pointer);
             for (size_t w = 0; w < WORK_FACTOR; ++w)
             {
-                work_sum = work_sum + murmur_32(reinterpret_cast<uint64_t>(random_pointer) >> w);
+                work_sum = work_sum + murmur_32(*(data.data() + random_pointer) >> w);
             }
         }
     }
     durations[thread_id] = findMedian(local_durations, local_durations.size());
 };
 
-std::pmr::vector<char> *cached_pointer_chase_arr = nullptr;
 void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results, auto &pointer_chase_arr)
 {
     StaticNumaMemoryResource mem_res{Prefetching::get().numa_manager.active_nodes[0], config.use_explicit_huge_pages, config.madvise_huge_pages};
@@ -182,8 +167,8 @@ int main(int argc, char **argv)
 
         auto num_bytes = config.total_memory * 1024 * 1024; // memory given in MiB
 
-        std::pmr::vector<char> pc_array(num_bytes, &mem_res);
-        initialize_padded_pointer_chase(pc_array, num_bytes, 0, ACTUAL_PAGE_SIZE, CACHELINE_SIZE);
+        std::pmr::vector<uint64_t> pc_array(num_bytes / sizeof(uint64_t), &mem_res);
+        initialize_pointer_chase(pc_array.data(), pc_array.size());
 
         for (size_t num_parallel_pc = start_num_parallel_pc; num_parallel_pc <= end_num_parallel_pc; num_parallel_pc++)
         {
