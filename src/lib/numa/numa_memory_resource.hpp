@@ -16,7 +16,17 @@ inline std::size_t get_page_size()
 
 inline std::size_t get_cache_line_size()
 {
-    return static_cast<std::size_t>(sysconf(_SC_LEVEL3_CACHE_LINESIZE));
+    auto cl_size = static_cast<std::size_t>(sysconf(_SC_LEVEL3_CACHE_LINESIZE));
+    if (cl_size != 0) // On systems with no Level3 Cache, 0 is returned.
+    {
+        return cl_size;
+    }
+    cl_size = static_cast<std::size_t>(sysconf(_SC_LEVEL2_CACHE_LINESIZE));
+    if (cl_size == 0)
+    {
+        throw std::runtime_error("Cache line size could not be determined");
+    }
+    return cl_size;
 }
 constexpr size_t HUGE_PAGE_SIZE = 2 * 1024 * 1024;
 std::size_t calculate_allocated_pages(size_t size);
