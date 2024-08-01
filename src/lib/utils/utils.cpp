@@ -227,7 +227,8 @@ size_t get_data_size_in_bytes(std::pmr::vector<T> &vec)
     return vec.size() * sizeof(T);
 }
 
-auto findMedian(auto &container,
+template <typename c>
+auto findMedian(std::vector<c> &container,
                 int n)
 {
 
@@ -242,7 +243,7 @@ auto findMedian(auto &container,
                     container.begin() + (n - 1) / 2,
                     container.end());
 
-        return (container[(n - 1) / 2] + container[n / 2]) / 2.0;
+        return static_cast<c>((container[(n - 1) / 2] + container[n / 2]) / 2.0);
     }
 
     else

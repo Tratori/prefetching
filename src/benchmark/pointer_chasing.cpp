@@ -29,7 +29,8 @@ struct PCBenchmarkConfig
 
 void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto &durations)
 {
-    pin_to_cpu(Prefetching::get().numa_manager.node_to_available_cpus[0][thread_id]);
+    const auto &numa_manager = Prefetching::get().numa_manager;
+    pin_to_cpu(numa_manager.node_to_available_cpus[numa_manager.active_nodes[0]][thread_id]);
     uint8_t dependency = 0;
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -47,7 +48,7 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
     }
 
     const auto number_repetitions = config.num_resolves / config.num_parallel_pc / config.accessed_cache_lines;
-    std::vector<std::chrono::duration<double>> local_durations(number_repetitions);
+    std::vector<unsigned long long> local_durations(number_repetitions);
 
     for (size_t r = 0; r < number_repetitions; r++)
     {
@@ -63,7 +64,7 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
         // prefetch actual pointers
         asm volatile("" ::: "memory");
 
-        auto start = std::chrono::steady_clock::now();
+        auto start = read_cycles();
         asm volatile("" ::: "memory");
 
         for (auto random_pointer : curr_pointers)
@@ -74,9 +75,9 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
             }
         }
         asm volatile("" ::: "memory");
-        auto end = std::chrono::steady_clock::now();
+        auto end = read_cycles();
         asm volatile("" ::: "memory");
-        local_durations[r] = end - start - CLOCK_MIN_DURATION;
+        local_durations[r] = end - start;
 
         // Proceed to the next pointer and also perform some work to make cpu reordering harder.
         volatile uint32_t work_sum = 0;
@@ -94,23 +95,11 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
 };
 
 std::pmr::vector<char> *cached_pointer_chase_arr = nullptr;
-void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results)
+void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results, auto &pointer_chase_arr)
 {
-    StaticNumaMemoryResource mem_res{0, config.use_explicit_huge_pages, config.madvise_huge_pages};
+    StaticNumaMemoryResource mem_res{Prefetching::get().numa_manager.active_nodes[0], config.use_explicit_huge_pages, config.madvise_huge_pages};
     std::random_device rd;
     std::mt19937 gen(rd());
-
-    auto num_bytes = config.total_memory * 1024 * 1024; // memory given in MiB
-    if (!(cached_pointer_chase_arr && (cached_pointer_chase_arr->size() == num_bytes)))
-    {
-        if (cached_pointer_chase_arr)
-        {
-            delete cached_pointer_chase_arr;
-        }
-        cached_pointer_chase_arr = new std::pmr::vector<char>(num_bytes, &mem_res);
-        initialize_padded_pointer_chase(*cached_pointer_chase_arr, num_bytes, 0, ACTUAL_PAGE_SIZE, CACHELINE_SIZE);
-    }
-    auto pointer_chase_arr = *cached_pointer_chase_arr;
 
     std::vector<std::jthread> threads;
 
@@ -118,7 +107,7 @@ void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results)
     auto warm_up_config = PCBenchmarkConfig{config};
     warm_up_config.num_parallel_pc = 16;
     warm_up_config.num_resolves = 100'000;
-    std::vector<std::chrono::duration<double>> empty_durations(config.num_threads);
+    std::vector<unsigned long long> empty_durations(config.num_threads);
     for (size_t i = 0; i < config.num_threads; ++i)
     {
         threads.emplace_back([&, i]()
@@ -130,7 +119,7 @@ void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results)
     }
     threads.clear();
     // ---- End Warm-up ----
-    std::vector<std::chrono::duration<double>> durations(config.num_threads);
+    std::vector<unsigned long long> durations(config.num_threads);
     for (size_t i = 0; i < config.num_threads; ++i)
     {
         threads.emplace_back([&, i]()
@@ -140,13 +129,13 @@ void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results)
     {
         t.join();
     }
-    auto total_time = std::chrono::duration<double>{0};
+    unsigned long long total_time = 0;
     for (auto &duration : durations)
     {
         total_time += duration;
     }
-    results["runtime"] = total_time.count();
-    std::cout << config.num_parallel_pc << " took " << total_time.count() << std::endl;
+    results["runtime"] = total_time;
+    std::cout << config.num_parallel_pc << " took " << total_time << std::endl;
 }
 
 int main(int argc, char **argv)
@@ -158,7 +147,8 @@ int main(int argc, char **argv)
         ("total_memory", "Total memory allocated MiB", cxxopts::value<std::vector<size_t>>()->default_value("1024"))
         ("num_threads", "Number of threads running the bench", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("num_resolves", "Number of resolves each pointer chase executes", cxxopts::value<std::vector<size_t>>()->default_value("1000000"))
-        ("num_parallel_pc", "Number of parallel pointer chases per thread", cxxopts::value<std::vector<size_t>>()->default_value("10"))
+        ("start_num_parallel_pc", "Start number of parallel pointer chases per thread", cxxopts::value<std::vector<size_t>>()->default_value("1"))
+        ("end_num_parallel_pc", "End number of parallel pointer chases per thread", cxxopts::value<std::vector<size_t>>()->default_value("128"))
         ("accessed_cache_lines", "Number cache lines that are prefetched per pointer resolve", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"));
@@ -173,7 +163,8 @@ int main(int argc, char **argv)
         auto total_memory = convert<size_t>(runtime_config["total_memory"]);
         auto num_threads = convert<size_t>(runtime_config["num_threads"]);
         auto num_resolves = convert<size_t>(runtime_config["num_resolves"]);
-        auto num_parallel_pc = convert<size_t>(runtime_config["num_parallel_pc"]);
+        auto start_num_parallel_pc = convert<size_t>(runtime_config["start_num_parallel_pc"]);
+        auto end_num_parallel_pc = convert<size_t>(runtime_config["end_num_parallel_pc"]);
         auto accessed_cache_lines = convert<size_t>(runtime_config["accessed_cache_lines"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
@@ -181,26 +172,38 @@ int main(int argc, char **argv)
             total_memory,
             num_threads,
             num_resolves,
-            num_parallel_pc,
+            start_num_parallel_pc,
             accessed_cache_lines,
             use_explicit_huge_pages,
             madvise_huge_pages,
         };
-        nlohmann::json results;
-        results["config"]["total_memory"] = config.total_memory;
-        results["config"]["num_threads"] = config.num_threads;
-        results["config"]["num_resolves"] = config.num_resolves;
-        results["config"]["num_parallel_pc"] = config.num_parallel_pc;
-        results["config"]["accessed_cache_lines"] = config.accessed_cache_lines;
-        results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
-        results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
 
-        lfb_size_benchmark(config, results);
-        all_results.push_back(results);
-        auto results_file = std::ofstream{"pc_benchmark.json"};
-        nlohmann::json intermediate_json;
-        intermediate_json["results"] = all_results;
-        results_file << intermediate_json.dump(-1) << std::flush;
+        StaticNumaMemoryResource mem_res{Prefetching::get().numa_manager.active_nodes[0], config.use_explicit_huge_pages, config.madvise_huge_pages};
+
+        auto num_bytes = config.total_memory * 1024 * 1024; // memory given in MiB
+
+        std::pmr::vector<char> pc_array(num_bytes, &mem_res);
+        initialize_padded_pointer_chase(pc_array, num_bytes, 0, ACTUAL_PAGE_SIZE, CACHELINE_SIZE);
+
+        for (size_t num_parallel_pc = start_num_parallel_pc; num_parallel_pc <= end_num_parallel_pc; num_parallel_pc++)
+        {
+            nlohmann::json results;
+            results["config"]["total_memory"] = config.total_memory;
+            results["config"]["num_threads"] = config.num_threads;
+            results["config"]["num_resolves"] = config.num_resolves;
+            results["config"]["num_parallel_pc"] = config.num_parallel_pc;
+            results["config"]["accessed_cache_lines"] = config.accessed_cache_lines;
+            results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
+            results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
+
+            config.num_parallel_pc = num_parallel_pc;
+            lfb_size_benchmark(config, results, pc_array);
+            all_results.push_back(results);
+            auto results_file = std::ofstream{"pc_benchmark.json"};
+            nlohmann::json intermediate_json;
+            intermediate_json["results"] = all_results;
+            results_file << intermediate_json.dump(-1) << std::flush;
+        }
     }
 
     return 0;
