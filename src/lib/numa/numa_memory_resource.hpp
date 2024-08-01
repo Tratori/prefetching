@@ -27,7 +27,9 @@ inline std::size_t get_cache_line_size()
     {
         return cl_size;
     }
+#if __cpp_lib_hardware_interference_size >= 201603
     cl_size = std::hardware_destructive_interference_size;
+#endif
     if (cl_size == 0)
     {
         throw std::runtime_error("Cacheline size could not be determined.");
