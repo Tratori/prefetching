@@ -136,7 +136,8 @@ int main(int argc, char **argv)
         ("end_num_parallel_pc", "End number of parallel pointer chases per thread", cxxopts::value<std::vector<size_t>>()->default_value("128"))
         ("accessed_cache_lines", "Number cache lines that are prefetched per pointer resolve", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
-        ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"));
+        ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
+        ("out", "Path on which results should be stored", cxxopts::value<std::vector<std::string>>()->default_value("pc_benchmark.json"));
     // clang-format on
     benchmark_config.parse(argc, argv);
 
@@ -153,6 +154,8 @@ int main(int argc, char **argv)
         auto accessed_cache_lines = convert<size_t>(runtime_config["accessed_cache_lines"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
+        auto out = convert<std::string>(runtime_config["out"]);
+
         PCBenchmarkConfig config = {
             total_memory,
             num_threads,
@@ -184,7 +187,7 @@ int main(int argc, char **argv)
             config.num_parallel_pc = num_parallel_pc;
             lfb_size_benchmark(config, results, pc_array);
             all_results.push_back(results);
-            auto results_file = std::ofstream{"pc_benchmark.json"};
+            auto results_file = std::ofstream{out};
             nlohmann::json intermediate_json;
             intermediate_json["results"] = all_results;
             results_file << intermediate_json.dump(-1) << std::flush;
