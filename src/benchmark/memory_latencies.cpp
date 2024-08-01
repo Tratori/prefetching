@@ -178,13 +178,13 @@ int pointer_chase(LBenchmarkConfig &config, auto &results, size_t *buffer)
     std::cout << "Baseline_Durations:";
     for (auto &no_d : baseline_durations)
     {
-        std::cout << " " << no_d;
+        std::cout << " " << no_d.count();
     }
     std::cout << std::endl;
     std::cout << "Access_durations:";
     for (auto &d : access_durations)
     {
-        std::cout << " " << d;
+        std::cout << " " << d.count();
     }
     std::cout << std::endl;
     results["min_latency_single"] = ((*std::min_element(access_durations.begin(), access_durations.end()) - *std::min_element(baseline_durations.begin(), baseline_durations.end())) / (double)config.repeats * 1'000'000'000).count();
