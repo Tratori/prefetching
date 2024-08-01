@@ -154,7 +154,7 @@ int pointer_chase(LBenchmarkConfig &config, auto &results, size_t *buffer)
     std::vector<std::chrono::duration<double>> access_durations(MAXREPEATS);
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, config.access_range / sizeof(size_t));
+    std::uniform_int_distribution<> dis(0, (config.access_range / sizeof(size_t)) - 1);
 
     for (int n = 0; n < MAXREPEATS; n++)
     {
@@ -300,7 +300,7 @@ int main(int argc, char **argv)
             }
             if (use_pointer_chase)
             {
-                memRes.deallocate(buffer, config.access_range, 1 << 22);
+                memRes.deallocate(buffer, end_access_range, 1 << 22);
             }
             else
             {

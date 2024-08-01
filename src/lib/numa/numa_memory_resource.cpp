@@ -155,7 +155,7 @@ void *NumaMemoryResource::alloc(extent_hooks_t *extent_hooks, void *new_addr, si
 bool NumaMemoryResource::dalloc(extent_hooks_t *extent_hooks, void *addr, size_t size, bool committed, unsigned arena_ind)
 {
 
-    if (arena_to_resource_map[arena_ind]->_use_explicit_huge_pages)
+    if (arena_to_resource_map[arena_ind]->_use_explicit_huge_pages || arena_to_resource_map[arena_ind]->_madvise_huge_pages)
     {
         size = align_to_huge_page_size(size);
     }
