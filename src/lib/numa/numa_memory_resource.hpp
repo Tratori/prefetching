@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <new>
 #include <memory_resource>
 #include <unistd.h>
 
@@ -17,14 +18,19 @@ inline std::size_t get_page_size()
 inline std::size_t get_cache_line_size()
 {
     auto cl_size = static_cast<std::size_t>(sysconf(_SC_LEVEL3_CACHE_LINESIZE));
-    if (cl_size != 0) // On systems with no Level3 Cache, 0 is returned.
+    if (cl_size != 0)
     {
         return cl_size;
     }
     cl_size = static_cast<std::size_t>(sysconf(_SC_LEVEL2_CACHE_LINESIZE));
+    if (cl_size != 0)
+    {
+        return cl_size;
+    }
+    cl_size = std::hardware_destructive_interference_size;
     if (cl_size == 0)
     {
-        throw std::runtime_error("Cache line size could not be determined");
+        throw std::runtime_error("Cacheline size could not be determined.");
     }
     return cl_size;
 }
