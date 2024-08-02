@@ -258,6 +258,7 @@ int main(int argc, char **argv)
 
         for (NodeID alloc_on : alloc_on_nodes)
         {
+            config.alloc_on_node = alloc_on;
             void *buffer;
             auto memRes = StaticNumaMemoryResource(config.alloc_on_node, config.use_explicit_huge_pages, config.madvise_huge_pages);
 
@@ -273,7 +274,6 @@ int main(int argc, char **argv)
             }
             for (NodeID run_on : run_on_nodes)
             {
-                config.alloc_on_node = alloc_on;
                 config.run_on_node = run_on;
 
                 for (int access_range = start_access_range; access_range <= end_access_range; access_range *= growth_factor)
