@@ -94,5 +94,5 @@ for node_conf in ${node_config[@]}; do
     srun -A rabl --partition ${partitions[$node_conf]} -w $node -c ${num_cpus[$node_conf]} \
       --time=36:00:00 --container-image=${HOME}/${images[${arch[$node_conf]}]} \
       --container-mounts=${HOME}/prefetching:/prefetching  \
-      /prefetching/scripts/delab_benchmark_pipeline.sh ${node_conf} ${1} ${2} ${@:3} &
+      bash /prefetching/scripts/delab_benchmark_pipeline.sh ${node_conf} ${1} ${2} ${@:3} &
 done
