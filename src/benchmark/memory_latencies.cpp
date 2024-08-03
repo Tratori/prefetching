@@ -130,7 +130,7 @@ size_t resolve(volatile size_t *buffer, size_t resolves, size_t start)
 
 int pointer_chase(LBenchmarkConfig &config, auto &results, size_t *buffer)
 {
-    sleep(1);
+    sleep(5);
     size_t *zero_buffer;
     pin_to_cpu(Prefetching::get().numa_manager.node_to_available_cpus[config.run_on_node][0]);
     auto memRes = StaticNumaMemoryResource(config.alloc_on_node, config.use_explicit_huge_pages, config.madvise_huge_pages);
@@ -275,6 +275,8 @@ int main(int argc, char **argv)
             for (NodeID run_on : run_on_nodes)
             {
                 config.run_on_node = run_on;
+
+                std::cout << "alloc_on_node: " << config.alloc_on_node << " run_on_node: " << config.run_on_node << std::endl;
 
                 for (int access_range = start_access_range; access_range <= end_access_range; access_range *= growth_factor)
                 {
