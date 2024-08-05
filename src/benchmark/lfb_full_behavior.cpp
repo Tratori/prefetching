@@ -13,6 +13,7 @@
 #include "utils/utils.cpp"
 
 const size_t CACHELINE_SIZE = get_cache_line_size();
+const size_t REPEATS = 10;
 
 struct LFBFullBenchmarkConfig
 {
@@ -24,39 +25,57 @@ struct LFBFullBenchmarkConfig
     bool madvise_huge_pages;
 };
 
-void additional_prefetch_lfb_load(size_t i, size_t number_accesses, auto &config, auto &data, auto &accesses, auto &durations)
+void generate_stats(auto &results, auto &durations, std::string prefix)
+{
+    results["min_" + prefix + "runtime"] = *std::min_element(durations.begin(), durations.end());
+    results["median_" + prefix + "runtime"] = findMedian(durations, durations.size());
+    results[prefix + "runtime"] = results["median_" + prefix + "runtime"];
+    results[prefix + "runtimes"] = durations;
+}
+
+void prefetch_full(size_t i, size_t number_accesses, auto &config, auto &data, auto &accesses, auto &durations, const bool prefetch = true)
 {
     pin_to_cpu(Prefetching::get().numa_manager.node_to_available_cpus[0][i]);
     size_t start_access = i * number_accesses;
     int dummy_dependency = 0; // data has only zeros written to it, so this will effectively do nothing, besides
                               // adding a data dependency - Hopefully this forces batches to be loaded sequentially.
 
+    auto new_dummy_dependency = dummy_dependency;
     std::random_device rd;
-    std::mt19937 gen(rd());
-    std::vector<std::uint64_t> unrelated_accesses(number_accesses * config.num_prefetches);
-    std::uniform_int_distribution<> dis(0, data.size() - 1);
-
-    for (auto &p : unrelated_accesses)
+    std::chrono::duration<double> duration{0};
+    for (size_t b = 0; b + config.num_prefetches < number_accesses; b += config.num_prefetches)
     {
-        p = dis(gen);
-    }
-
-    auto start = std::chrono::high_resolution_clock::now();
-    for (size_t b = 0; b < number_accesses; ++b)
-    {
-        for (int j = 0; j < config.num_prefetches; ++j)
+        if (prefetch)
         {
-            __builtin_prefetch(reinterpret_cast<void *>(data.data() + unrelated_accesses[b * config.num_prefetches + j]), 0, 0);
+            for (int j = 0; j < config.num_prefetches; ++j)
+            {
+                __builtin_prefetch(reinterpret_cast<void *>(data.data() + accesses.at(start_access + b + j + dummy_dependency)), 0, 0);
+            }
         }
-        // auto random_access = accesses[start_access + b] + dummy_dependency;
-        // dummy_dependency += *reinterpret_cast<uint8_t *>(data.data() + random_access);
+
+        lfence();
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int j = 0; j < config.num_prefetches / 2; ++j)
+        {
+            auto random_access = accesses.at(start_access + b + dummy_dependency + j);
+            new_dummy_dependency += *reinterpret_cast<uint8_t *>(data.data() + random_access);
+        }
+        lfence();
+        auto end = std::chrono::high_resolution_clock::now();
+        duration += end - start;
+
+        for (int j = config.num_prefetches / 2; j < config.num_prefetches; ++j)
+        {
+            auto random_access = accesses.at(start_access + b + dummy_dependency + j);
+            new_dummy_dependency += *reinterpret_cast<uint8_t *>(data.data() + random_access);
+        }
+        dummy_dependency = new_dummy_dependency;
     }
     if (dummy_dependency > data.size())
     {
         throw std::runtime_error("new_dep contains wrong dependency: " + std::to_string(dummy_dependency));
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    durations[i] = std::chrono::duration<double>(end - start);
+    durations[i] = duration;
 };
 
 void benchmark_wrapper(LFBFullBenchmarkConfig config, nlohmann::json &results, auto &zero_data)
@@ -67,33 +86,84 @@ void benchmark_wrapper(LFBFullBenchmarkConfig config, nlohmann::json &results, a
     std::uniform_int_distribution<> dis(0, zero_data.size() - 1);
 
     std::vector<std::uint64_t> accesses(config.num_repetitions);
+    std::vector<double> measurement_lower_durations(REPEATS);
+    std::vector<double> measurement_durations(REPEATS);
+    std::vector<double> measurement_upper_durations(REPEATS);
 
-    const size_t read_size = 8;
-    // fill accesses with random numbers from 0 to total_memory (in bytes) - read_size.
-    std::generate(accesses.begin(), accesses.end(), [&]()
-                  { return dis(gen); });
+    for (size_t r = 0; r < REPEATS; r++)
+    {
+        size_t number_accesses_per_thread = config.num_repetitions / config.num_threads;
+        std::vector<std::jthread> threads;
+        std::vector<std::chrono::duration<double>> baseline_durations(config.num_threads);
 
-    std::vector<std::jthread> threads;
+        // Optimum (all "random accesses" point to the first element) -> every access should be cached
+        std::generate(accesses.begin(), accesses.end(), [&]()
+                      { return 0; });
 
-    std::vector<std::chrono::duration<double>> durations(config.num_threads);
-    size_t number_accesses_per_thread = config.num_repetitions / config.num_threads;
-    for (size_t i = 0; i < config.num_threads; ++i)
-    {
-        threads.emplace_back([&, i]()
-                             { additional_prefetch_lfb_load(i, number_accesses_per_thread, config, zero_data, accesses, durations); });
+        for (size_t i = 0; i < config.num_threads; ++i)
+        {
+            threads.emplace_back([&, i]()
+                                 { prefetch_full(i, number_accesses_per_thread, config, zero_data, accesses, baseline_durations); });
+        }
+        for (auto &t : threads)
+        {
+            t.join();
+        }
+        auto total_baseline_time = std::chrono::duration<double>{0};
+        for (auto &duration : baseline_durations)
+        {
+            total_baseline_time += duration;
+        }
+        measurement_lower_durations[r] = total_baseline_time.count();
+        threads.clear();
+        // now actually generate random accesses and prefetch
+        std::generate(accesses.begin(), accesses.end(), [&]()
+                      { return dis(gen); });
+
+        std::vector<std::chrono::duration<double>> durations(config.num_threads);
+        for (size_t i = 0; i < config.num_threads; ++i)
+        {
+            threads.emplace_back([&, i]()
+                                 { prefetch_full(i, number_accesses_per_thread, config, zero_data, accesses, durations); });
+        }
+        for (auto &t : threads)
+        {
+            t.join();
+        }
+        auto total_time = std::chrono::duration<double>{0};
+        for (auto &duration : durations)
+        {
+            total_time += duration;
+        }
+        measurement_durations[r] = total_time.count();
+        // Upper bound -> every measured access should be dram
+        threads.clear();
+        std::generate(accesses.begin(), accesses.end(), [&]()
+                      { return dis(gen); });
+        std::vector<std::chrono::duration<double>> upper_durations(config.num_threads);
+
+        for (size_t i = 0; i < config.num_threads; ++i)
+        {
+            threads.emplace_back([&, i]()
+                                 { prefetch_full(i, number_accesses_per_thread, config, zero_data, accesses, upper_durations, false); });
+        }
+        for (auto &t : threads)
+        {
+            t.join();
+        }
+        auto total_upper_time = std::chrono::duration<double>{0};
+        for (auto &duration : upper_durations)
+        {
+            total_upper_time += duration;
+        }
+        measurement_upper_durations[r] = total_upper_time.count();
     }
-    for (auto &t : threads)
-    {
-        t.join();
-    }
-    auto total_time = std::chrono::duration<double>{0};
-    for (auto &duration : durations)
-    {
-        total_time += duration;
-    }
-    results["runtime"] = total_time.count();
+    generate_stats(results, measurement_lower_durations, "_lower");
+    generate_stats(results, measurement_durations, "");
+    generate_stats(results, measurement_upper_durations, "_upper");
+
     std::cout << "num_prefetches: " << config.num_prefetches << std::endl;
-    std::cout << "took " << total_time.count() << std::endl;
+    std::cout << "took " << results["lower_runtime"] << " / " << results["runtime"] << " / " << results["upper_runtime"] << std::endl;
 }
 
 int main(int argc, char **argv)
@@ -102,11 +172,11 @@ int main(int argc, char **argv)
 
     // clang-format off
     benchmark_config.add_options()
-        ("total_memory", "Total memory allocated MiB", cxxopts::value<std::vector<size_t>>()->default_value("1024"))
-        ("num_threads", "Number of threads running the bench", cxxopts::value<std::vector<size_t>>()->default_value("8"))
+        ("total_memory", "Total memory allocated MiB", cxxopts::value<std::vector<size_t>>()->default_value("512"))
+        ("num_threads", "Number of threads running the bench", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("num_repetitions", "Number of repetitions of the measurement", cxxopts::value<std::vector<size_t>>()->default_value("10000000"))
-        ("start_num_prefetches", "starting number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("0"))
-        ("end_num_prefetches", "ending number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("64"))
+        ("start_num_prefetches", "starting number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("1"))
+        ("end_num_prefetches", "ending number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("128"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
         ("out", "Path on which results should be stored", cxxopts::value<std::vector<std::string>>()->default_value("lfb_full_behavior.json"));
