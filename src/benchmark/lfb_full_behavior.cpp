@@ -158,9 +158,9 @@ void benchmark_wrapper(LFBFullBenchmarkConfig config, nlohmann::json &results, a
         }
         measurement_upper_durations[r] = total_upper_time.count();
     }
-    generate_stats(results, measurement_lower_durations, "_lower");
+    generate_stats(results, measurement_lower_durations, "lower_");
     generate_stats(results, measurement_durations, "");
-    generate_stats(results, measurement_upper_durations, "_upper");
+    generate_stats(results, measurement_upper_durations, "upper_");
 
     std::cout << "num_prefetches: " << config.num_prefetches << std::endl;
     std::cout << "took " << results["lower_runtime"] << " / " << results["runtime"] << " / " << results["upper_runtime"] << std::endl;
@@ -175,8 +175,8 @@ int main(int argc, char **argv)
         ("total_memory", "Total memory allocated MiB", cxxopts::value<std::vector<size_t>>()->default_value("512"))
         ("num_threads", "Number of threads running the bench", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("num_repetitions", "Number of repetitions of the measurement", cxxopts::value<std::vector<size_t>>()->default_value("10000000"))
-        ("start_num_prefetches", "starting number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("1"))
-        ("end_num_prefetches", "ending number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("128"))
+        ("start_num_prefetches", "starting number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("2"))
+        ("end_num_prefetches", "ending number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("256"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
         ("out", "Path on which results should be stored", cxxopts::value<std::vector<std::string>>()->default_value("lfb_full_behavior.json"));
