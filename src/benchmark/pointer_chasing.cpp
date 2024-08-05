@@ -14,14 +14,13 @@
 
 const size_t CACHELINE_SIZE = get_cache_line_size();
 const size_t ACTUAL_PAGE_SIZE = get_page_size();
-
+const size_t REPEAT_MEASUREMENT = 10;
 struct PCBenchmarkConfig
 {
     size_t total_memory;
     size_t num_threads;
     size_t num_resolves;
     size_t num_parallel_pc;
-    size_t accessed_cache_lines;
     bool use_explicit_huge_pages;
     bool madvise_huge_pages;
 };
@@ -41,43 +40,23 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
         curr_pointers.push_back(uniform_dis(gen));
     }
 
-    const auto number_repetitions = config.num_resolves / config.num_parallel_pc / config.accessed_cache_lines;
-    std::vector<unsigned long long> local_durations(number_repetitions);
+    const auto number_repetitions = config.num_resolves / config.num_parallel_pc;
 
+    auto start = std::chrono::steady_clock::now();
+    uint32_t old_work_sum = 0;
     for (size_t r = 0; r < number_repetitions; r++)
     {
-        lfence();
-        // prefetch actual pointers
-        asm volatile("" ::: "memory");
-
-        auto start = read_cycles();
-        asm volatile("" ::: "memory");
-
-        for (auto random_pointer : curr_pointers)
-        {
-            for (size_t i = 0; i < config.accessed_cache_lines; ++i)
-            {
-                __builtin_prefetch(reinterpret_cast<void *>(data.data() + random_pointer + CACHELINE_SIZE * i), 0, 0); // This can actually access wrong addresses, but prefetch should be allowed to do that.
-            }
-        }
-        asm volatile("" ::: "memory");
-        auto end = read_cycles();
-        asm volatile("" ::: "memory");
-        local_durations[r] = end - start;
-
-        // Proceed to the next pointer and also perform some work to make cpu reordering harder.
-        volatile uint32_t work_sum = 0;
-        const size_t WORK_FACTOR = 8;
+        uint32_t work_sum = 0;
         for (auto &random_pointer : curr_pointers)
         {
-            random_pointer = *(data.data() + random_pointer);
-            for (size_t w = 0; w < WORK_FACTOR; ++w)
-            {
-                work_sum = work_sum + murmur_32(*(data.data() + random_pointer) >> w);
-            }
+            work_sum += reinterpret_cast<size_t>(data.data() + random_pointer + old_work_sum) & 1;
+            random_pointer = *(data.data() + random_pointer + old_work_sum);
         }
+        old_work_sum = work_sum;
     }
-    durations[thread_id] = findMedian(local_durations, local_durations.size());
+    auto end = std::chrono::steady_clock::now();
+
+    durations[thread_id] = end - start;
 };
 
 void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results, auto &pointer_chase_arr)
@@ -86,41 +65,48 @@ void lfb_size_benchmark(PCBenchmarkConfig config, nlohmann::json &results, auto 
     std::random_device rd;
     std::mt19937 gen(rd());
 
-    std::vector<std::jthread> threads;
+    std::vector<double> final_measurements(REPEAT_MEASUREMENT);
+    for (size_t repeat = 0; repeat < REPEAT_MEASUREMENT; repeat++)
+    {
+        std::vector<std::jthread> threads;
+        // ---- Baseline ----
+        auto warm_up_config = PCBenchmarkConfig{config};
+        std::vector<std::chrono::duration<double>> baseline_durations(config.num_threads);
+        std::vector<size_t> pc_single = {0};
+        for (size_t i = 0; i < config.num_threads; ++i)
+        {
+            threads.emplace_back([&, i]()
+                                 { pointer_chase(i, config, pc_single, baseline_durations); });
+        }
+        for (auto &t : threads)
+        {
+            t.join();
+        }
+        threads.clear();
+        // ---- End Warm-up ----
+        std::vector<std::chrono::duration<double>> durations(config.num_threads);
+        for (size_t i = 0; i < config.num_threads; ++i)
+        {
+            threads.emplace_back([&, i]()
+                                 { pointer_chase(i, config, pointer_chase_arr, durations); });
+        }
+        for (auto &t : threads)
+        {
+            t.join();
+        }
+        auto total_time = std::chrono::duration<double>{0};
+        for (size_t i = 0; i < durations.size(); i++)
+        {
+            total_time += durations[i] - baseline_durations[i];
+        }
+        final_measurements[repeat] = total_time.count();
+    }
 
-    // ---- Warm-up ----
-    auto warm_up_config = PCBenchmarkConfig{config};
-    warm_up_config.num_parallel_pc = 16;
-    warm_up_config.num_resolves = 100'000;
-    std::vector<unsigned long long> empty_durations(config.num_threads);
-    for (size_t i = 0; i < config.num_threads; ++i)
-    {
-        threads.emplace_back([&, i]()
-                             { pointer_chase(i, config, pointer_chase_arr, empty_durations); });
-    }
-    for (auto &t : threads)
-    {
-        t.join();
-    }
-    threads.clear();
-    // ---- End Warm-up ----
-    std::vector<unsigned long long> durations(config.num_threads);
-    for (size_t i = 0; i < config.num_threads; ++i)
-    {
-        threads.emplace_back([&, i]()
-                             { pointer_chase(i, config, pointer_chase_arr, durations); });
-    }
-    for (auto &t : threads)
-    {
-        t.join();
-    }
-    unsigned long long total_time = 0;
-    for (auto &duration : durations)
-    {
-        total_time += duration;
-    }
-    results["runtime"] = total_time;
-    std::cout << config.num_parallel_pc << " took " << total_time << std::endl;
+    results["min_runtime"] = *std::min_element(final_measurements.begin(), final_measurements.end());
+    results["median_runtime"] = findMedian(final_measurements, final_measurements.size());
+    results["runtime"] = results["median_runtime"];
+    results["runtimes"] = final_measurements;
+    std::cout << config.num_parallel_pc << " took " << results["median_runtime"] << std::endl;
 }
 
 int main(int argc, char **argv)
@@ -134,7 +120,6 @@ int main(int argc, char **argv)
         ("num_resolves", "Number of resolves each pointer chase executes", cxxopts::value<std::vector<size_t>>()->default_value("1000000"))
         ("start_num_parallel_pc", "Start number of parallel pointer chases per thread", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("end_num_parallel_pc", "End number of parallel pointer chases per thread", cxxopts::value<std::vector<size_t>>()->default_value("128"))
-        ("accessed_cache_lines", "Number cache lines that are prefetched per pointer resolve", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
         ("out", "Path on which results should be stored", cxxopts::value<std::vector<std::string>>()->default_value("pc_benchmark.json"));
@@ -151,7 +136,6 @@ int main(int argc, char **argv)
         auto num_resolves = convert<size_t>(runtime_config["num_resolves"]);
         auto start_num_parallel_pc = convert<size_t>(runtime_config["start_num_parallel_pc"]);
         auto end_num_parallel_pc = convert<size_t>(runtime_config["end_num_parallel_pc"]);
-        auto accessed_cache_lines = convert<size_t>(runtime_config["accessed_cache_lines"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
         auto out = convert<std::string>(runtime_config["out"]);
@@ -161,7 +145,6 @@ int main(int argc, char **argv)
             num_threads,
             num_resolves,
             start_num_parallel_pc,
-            accessed_cache_lines,
             use_explicit_huge_pages,
             madvise_huge_pages,
         };
@@ -180,7 +163,6 @@ int main(int argc, char **argv)
             results["config"]["num_threads"] = config.num_threads;
             results["config"]["num_resolves"] = config.num_resolves;
             results["config"]["num_parallel_pc"] = config.num_parallel_pc;
-            results["config"]["accessed_cache_lines"] = config.accessed_cache_lines;
             results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
             results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
 
