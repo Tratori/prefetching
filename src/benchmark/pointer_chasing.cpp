@@ -21,11 +21,12 @@ struct PCBenchmarkConfig
     size_t num_threads;
     size_t num_resolves;
     size_t num_parallel_pc;
+    bool prefetch;
     bool use_explicit_huge_pages;
     bool madvise_huge_pages;
 };
 
-void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto &durations)
+void pointer_chase(size_t thread_id, const PCBenchmarkConfig &config, auto &data, auto &durations)
 {
     const auto &numa_manager = Prefetching::get().numa_manager;
     pin_to_cpu(numa_manager.node_to_available_cpus[numa_manager.active_nodes[0]][thread_id]);
@@ -46,6 +47,13 @@ void pointer_chase(size_t thread_id, PCBenchmarkConfig &config, auto &data, auto
     uint32_t old_work_sum = 0;
     for (size_t r = 0; r < number_repetitions; r++)
     {
+        if (config.prefetch)
+        {
+            for (auto &random_pointer : curr_pointers)
+            {
+                __builtin_prefetch(reinterpret_cast<void *>(data.data() + random_pointer + old_work_sum), 0, 0);
+            }
+        }
         uint32_t work_sum = 0;
         for (auto &random_pointer : curr_pointers)
         {
@@ -121,6 +129,7 @@ int main(int argc, char **argv)
         ("start_num_parallel_pc", "Start number of parallel pointer chases per thread", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("end_num_parallel_pc", "End number of parallel pointer chases per thread", cxxopts::value<std::vector<size_t>>()->default_value("128"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
+        ("prefetch", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("false,true"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
         ("out", "Path on which results should be stored", cxxopts::value<std::vector<std::string>>()->default_value("pc_benchmark.json"));
     // clang-format on
@@ -138,6 +147,7 @@ int main(int argc, char **argv)
         auto end_num_parallel_pc = convert<size_t>(runtime_config["end_num_parallel_pc"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
+        auto prefetch = convert<bool>(runtime_config["prefetch"]);
         auto out = convert<std::string>(runtime_config["out"]);
 
         PCBenchmarkConfig config = {
@@ -145,6 +155,7 @@ int main(int argc, char **argv)
             num_threads,
             num_resolves,
             start_num_parallel_pc,
+            prefetch,
             use_explicit_huge_pages,
             madvise_huge_pages,
         };
@@ -165,6 +176,7 @@ int main(int argc, char **argv)
             results["config"]["num_parallel_pc"] = config.num_parallel_pc;
             results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
             results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
+            results["config"]["prefetch"] = config.prefetch;
 
             config.num_parallel_pc = num_parallel_pc;
             lfb_size_benchmark(config, results, pc_array);
