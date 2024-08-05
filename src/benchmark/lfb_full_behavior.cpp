@@ -43,28 +43,29 @@ void prefetch_full(size_t i, size_t number_accesses, auto &config, auto &data, a
     auto new_dummy_dependency = dummy_dependency;
     std::random_device rd;
     std::chrono::duration<double> duration{0};
+    const auto measure_until = config.num_prefetches / 2;
     for (size_t b = 0; b + config.num_prefetches < number_accesses; b += config.num_prefetches)
     {
         if (prefetch)
         {
             for (int j = 0; j < config.num_prefetches; ++j)
             {
-                __builtin_prefetch(reinterpret_cast<void *>(data.data() + accesses.at(start_access + b + j + dummy_dependency)), 0, 0);
+                __builtin_prefetch(reinterpret_cast<void *>(data.data() + accesses.at[start_access + b + j + dummy_dependency]), 0, 0);
             }
         }
 
         auto start = std::chrono::high_resolution_clock::now();
-        for (int j = 0; j < config.num_prefetches / 2; ++j)
+        for (int j = 0; j < measure_until; ++j)
         {
-            auto random_access = accesses.at(start_access + b + dummy_dependency + j);
+            auto random_access = accesses[start_access + b + dummy_dependency + j];
             new_dummy_dependency += *reinterpret_cast<uint8_t *>(data.data() + random_access);
         }
         auto end = std::chrono::high_resolution_clock::now();
         duration += end - start;
 
-        for (int j = config.num_prefetches / 2; j < config.num_prefetches; ++j)
+        for (int j = measure_until; j < config.num_prefetches; ++j)
         {
-            auto random_access = accesses.at(start_access + b + dummy_dependency + j);
+            auto random_access = accesses[start_access + b + dummy_dependency + j];
             new_dummy_dependency += *reinterpret_cast<uint8_t *>(data.data() + random_access);
         }
         dummy_dependency = new_dummy_dependency;
