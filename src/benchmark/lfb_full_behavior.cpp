@@ -53,14 +53,12 @@ void prefetch_full(size_t i, size_t number_accesses, auto &config, auto &data, a
             }
         }
 
-        lfence();
         auto start = std::chrono::high_resolution_clock::now();
         for (int j = 0; j < config.num_prefetches / 2; ++j)
         {
             auto random_access = accesses.at(start_access + b + dummy_dependency + j);
             new_dummy_dependency += *reinterpret_cast<uint8_t *>(data.data() + random_access);
         }
-        lfence();
         auto end = std::chrono::high_resolution_clock::now();
         duration += end - start;
 
