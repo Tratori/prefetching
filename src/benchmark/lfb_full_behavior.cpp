@@ -50,7 +50,7 @@ void prefetch_full(size_t i, size_t number_accesses, auto &config, auto &data, a
         {
             for (int j = 0; j < config.num_prefetches; ++j)
             {
-                __builtin_prefetch(reinterpret_cast<void *>(data.data() + accesses.at[start_access + b + j + dummy_dependency]), 0, 0);
+                __builtin_prefetch(reinterpret_cast<void *>(data.data() + accesses[start_access + b + j + dummy_dependency]), 0, 0);
             }
         }
 
@@ -171,7 +171,7 @@ int main(int argc, char **argv)
 
     // clang-format off
     benchmark_config.add_options()
-        ("total_memory", "Total memory allocated MiB", cxxopts::value<std::vector<size_t>>()->default_value("512"))
+        ("total_memory", "Total memory allocated MiB", cxxopts::value<std::vector<size_t>>()->default_value("2048"))
         ("num_threads", "Number of threads running the bench", cxxopts::value<std::vector<size_t>>()->default_value("1"))
         ("num_repetitions", "Number of repetitions of the measurement", cxxopts::value<std::vector<size_t>>()->default_value("10000000"))
         ("start_num_prefetches", "starting number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("2"))
