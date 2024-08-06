@@ -21,6 +21,7 @@ struct LFBFullBenchmarkConfig
     size_t num_threads;
     size_t num_repetitions;
     size_t num_prefetches;
+    size_t measure_until;
     bool use_explicit_huge_pages;
     bool madvise_huge_pages;
 };
@@ -43,7 +44,7 @@ void prefetch_full(size_t i, size_t number_accesses, auto &config, auto &data, a
     auto new_dummy_dependency = dummy_dependency;
     std::random_device rd;
     std::chrono::duration<double> duration{0};
-    const auto measure_until = config.num_prefetches / 2;
+    const auto measure_until = (config.measure_until == 0) ? config.num_prefetches / 2 : config.measure_until;
     for (size_t b = 0; b + config.num_prefetches < number_accesses; b += config.num_prefetches)
     {
         if (prefetch)
@@ -161,7 +162,7 @@ void benchmark_wrapper(LFBFullBenchmarkConfig config, nlohmann::json &results, a
     generate_stats(results, measurement_durations, "");
     generate_stats(results, measurement_upper_durations, "upper_");
 
-    std::cout << "num_prefetches: " << config.num_prefetches << std::endl;
+    std::cout << "num_prefetches: " << config.num_prefetches << " measure_until: " << config.measure_until << std::endl;
     std::cout << "took " << results["lower_runtime"] << " / " << results["runtime"] << " / " << results["upper_runtime"] << std::endl;
 }
 
@@ -176,6 +177,8 @@ int main(int argc, char **argv)
         ("num_repetitions", "Number of repetitions of the measurement", cxxopts::value<std::vector<size_t>>()->default_value("10000000"))
         ("start_num_prefetches", "starting number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("2"))
         ("end_num_prefetches", "ending number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("256"))
+        ("start_measure_until", "start number of first x values for which we measure access time, if start==end==0 we take num_prefetches/2", cxxopts::value<std::vector<size_t>>()->default_value("0"))
+        ("end_measure_until", "end number of first x values for which we measure access time, if start==end==0 we take num_prefetches/2", cxxopts::value<std::vector<size_t>>()->default_value("0"))
         ("madvise_huge_pages", "Madvise kernel to create huge pages on mem regions", cxxopts::value<std::vector<bool>>()->default_value("true"))
         ("use_explicit_huge_pages", "Use huge pages during allocation", cxxopts::value<std::vector<bool>>()->default_value("false"))
         ("out", "Path on which results should be stored", cxxopts::value<std::vector<std::string>>()->default_value("lfb_full_behavior.json"));
@@ -192,6 +195,8 @@ int main(int argc, char **argv)
         auto num_repetitions = convert<size_t>(runtime_config["num_repetitions"]);
         auto start_num_prefetches = convert<size_t>(runtime_config["start_num_prefetches"]);
         auto end_num_prefetches = convert<size_t>(runtime_config["end_num_prefetches"]);
+        auto start_measure_until = convert<size_t>(runtime_config["start_measure_until"]);
+        auto end_measure_until = convert<size_t>(runtime_config["end_measure_until"]);
         auto madvise_huge_pages = convert<bool>(runtime_config["madvise_huge_pages"]);
         auto use_explicit_huge_pages = convert<bool>(runtime_config["use_explicit_huge_pages"]);
         auto out = convert<std::string>(runtime_config["out"]);
@@ -200,6 +205,7 @@ int main(int argc, char **argv)
             total_memory,
             num_threads,
             num_repetitions,
+            0,
             0,
             use_explicit_huge_pages,
             madvise_huge_pages,
@@ -214,16 +220,21 @@ int main(int argc, char **argv)
         // sleep(total_memory / 1.2);
         for (size_t num_prefetches = start_num_prefetches; num_prefetches <= end_num_prefetches; num_prefetches++)
         {
-            nlohmann::json results;
-            results["config"]["total_memory"] = config.total_memory;
-            results["config"]["num_threads"] = config.num_threads;
-            results["config"]["num_repetitions"] = config.num_repetitions;
-            results["config"]["num_prefetched"] = num_prefetches;
-            results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
-            results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
-            config.num_prefetches = num_prefetches;
-            benchmark_wrapper(config, results, data);
-            all_results.push_back(results);
+            for (size_t measure_until = start_measure_until; measure_until <= end_measure_until; measure_until++)
+            {
+                nlohmann::json results;
+                results["config"]["total_memory"] = config.total_memory;
+                results["config"]["num_threads"] = config.num_threads;
+                results["config"]["num_repetitions"] = config.num_repetitions;
+                results["config"]["num_prefetched"] = num_prefetches;
+                results["config"]["use_explicit_huge_pages"] = config.use_explicit_huge_pages;
+                results["config"]["madvise_huge_pages"] = config.madvise_huge_pages;
+                results["config"]["measure_until"] = measure_until;
+                config.num_prefetches = num_prefetches;
+                config.measure_until = measure_until;
+                benchmark_wrapper(config, results, data);
+                all_results.push_back(results);
+            }
         }
         auto results_file = std::ofstream{out};
         nlohmann::json intermediate_json;
