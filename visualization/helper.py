@@ -42,7 +42,7 @@ def load_results_jsons(directory):
     return all_results
 
 
-def build_1_d_json(data, d_json={}, base_key=""):
+def build_1_d_json(data, d_json, base_key=""):
     if isinstance(data, dict):
         for key, value in data.items():
             if isinstance(value, dict):
@@ -64,7 +64,7 @@ def fill_schema(schema, result, base_key=""):
 
 def load_flat_benchmark_directory_to_pandas(path):
     results = load_flat_jsons(path)
-    schema = build_1_d_json(results[0])
+    schema = build_1_d_json(results[0], {})
     for result in results:
         fill_schema(schema, result)
     return pd.DataFrame(schema)
@@ -72,7 +72,7 @@ def load_flat_benchmark_directory_to_pandas(path):
 
 def load_results_benchmark_directory_to_pandas(path):
     results = load_results_jsons(path)
-    schema = build_1_d_json(results[0])
+    schema = build_1_d_json(results[0], {})
     for result in results:
         fill_schema(schema, result)
     return pd.DataFrame(schema)
