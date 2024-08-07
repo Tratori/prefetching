@@ -9,7 +9,7 @@
 #  - <run_name> must be unique.
 
 
-node_config=("cx04" "cx28" "nx06" "ca06")
+node_config=("cx04" "cx28" "nx06" "ca06" "gx21")
 declare -A nodenames
 declare -A partitions
 declare -A num_cpus
@@ -18,6 +18,13 @@ declare -A arch
 
 images["x86_64"]="ubuntu22_04.sqsh"
 images["aarch64"]="arm_ubuntu22_04.sqsh"
+
+
+partitions["gx21"]="sorcery"
+nodenames["gx21"]="gx21"
+num_cpus["gx21"]="20" # 80 should be possible, dont care here
+arch["gx21"]="x86_64"
+
 
 partitions["cx04"]="magic"
 nodenames["cx04"]="cx04"
