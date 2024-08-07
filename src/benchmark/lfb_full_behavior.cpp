@@ -22,6 +22,7 @@ struct LFBFullBenchmarkConfig
     size_t num_repetitions;
     size_t num_prefetches;
     size_t measure_until;
+    std::string locality_hint;
     bool use_explicit_huge_pages;
     bool madvise_huge_pages;
 };
@@ -34,7 +35,8 @@ void generate_stats(auto &results, auto &durations, std::string prefix)
     results[prefix + "runtimes"] = durations;
 }
 
-void prefetch_full(size_t i, size_t number_accesses, auto &config, auto &data, auto &accesses, auto &durations, const bool prefetch = true)
+template <int locality>
+void prefetch_full(size_t i, size_t number_accesses, const auto &config, auto &data, auto &accesses, auto &durations, const bool prefetch = true)
 {
     pin_to_cpu(Prefetching::get().numa_manager.node_to_available_cpus[0][i]);
     size_t start_access = i * number_accesses;
@@ -51,7 +53,7 @@ void prefetch_full(size_t i, size_t number_accesses, auto &config, auto &data, a
         {
             for (int j = 0; j < config.num_prefetches; ++j)
             {
-                __builtin_prefetch(reinterpret_cast<void *>(data.data() + accesses[start_access + b + j + dummy_dependency]), 0, 0);
+                __builtin_prefetch(reinterpret_cast<void *>(data.data() + accesses[start_access + b + j + dummy_dependency]), 0, locality);
             }
         }
 
@@ -78,6 +80,7 @@ void prefetch_full(size_t i, size_t number_accesses, auto &config, auto &data, a
     durations[i] = duration;
 };
 
+template <int locality>
 void benchmark_wrapper(LFBFullBenchmarkConfig config, nlohmann::json &results, auto &zero_data)
 {
 
@@ -103,7 +106,7 @@ void benchmark_wrapper(LFBFullBenchmarkConfig config, nlohmann::json &results, a
         for (size_t i = 0; i < config.num_threads; ++i)
         {
             threads.emplace_back([&, i]()
-                                 { prefetch_full(i, number_accesses_per_thread, config, zero_data, accesses, baseline_durations); });
+                                 { prefetch_full<locality>(i, number_accesses_per_thread, config, zero_data, accesses, baseline_durations); });
         }
         for (auto &t : threads)
         {
@@ -124,7 +127,7 @@ void benchmark_wrapper(LFBFullBenchmarkConfig config, nlohmann::json &results, a
         for (size_t i = 0; i < config.num_threads; ++i)
         {
             threads.emplace_back([&, i]()
-                                 { prefetch_full(i, number_accesses_per_thread, config, zero_data, accesses, durations); });
+                                 { prefetch_full<locality>(i, number_accesses_per_thread, config, zero_data, accesses, durations); });
         }
         for (auto &t : threads)
         {
@@ -145,7 +148,7 @@ void benchmark_wrapper(LFBFullBenchmarkConfig config, nlohmann::json &results, a
         for (size_t i = 0; i < config.num_threads; ++i)
         {
             threads.emplace_back([&, i]()
-                                 { prefetch_full(i, number_accesses_per_thread, config, zero_data, accesses, upper_durations, false); });
+                                 { prefetch_full<locality>(i, number_accesses_per_thread, config, zero_data, accesses, upper_durations, false); });
         }
         for (auto &t : threads)
         {
@@ -162,7 +165,7 @@ void benchmark_wrapper(LFBFullBenchmarkConfig config, nlohmann::json &results, a
     generate_stats(results, measurement_durations, "");
     generate_stats(results, measurement_upper_durations, "upper_");
 
-    std::cout << "num_prefetches: " << config.num_prefetches << " measure_until: " << config.measure_until << std::endl;
+    std::cout << "num_prefetches: " << config.num_prefetches << " measure_until: " << config.measure_until << " locality: " << config.locality_hint << std::endl;
     std::cout << "took " << results["lower_runtime"] << " / " << results["runtime"] << " / " << results["upper_runtime"] << std::endl;
 }
 
@@ -172,8 +175,9 @@ int main(int argc, char **argv)
 
     // clang-format off
     benchmark_config.add_options()
-        ("total_memory", "Total memory allocated MiB", cxxopts::value<std::vector<size_t>>()->default_value("2048"))
+        ("total_memory", "Total memory allocated MiB", cxxopts::value<std::vector<size_t>>()->default_value("512"))
         ("num_threads", "Number of threads running the bench", cxxopts::value<std::vector<size_t>>()->default_value("1"))
+        ("locality_hint", "locality_hint, can be nta, t0, t1, or t2", cxxopts::value<std::vector<std::string>>()->default_value("NTA,T0,T1,T2"))
         ("num_repetitions", "Number of repetitions of the measurement", cxxopts::value<std::vector<size_t>>()->default_value("10000000"))
         ("start_num_prefetches", "starting number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("2"))
         ("end_num_prefetches", "ending number of prefetches between corresponding prefetch and load", cxxopts::value<std::vector<size_t>>()->default_value("256"))
@@ -192,6 +196,7 @@ int main(int argc, char **argv)
     {
         auto total_memory = convert<size_t>(runtime_config["total_memory"]);
         auto num_threads = convert<size_t>(runtime_config["num_threads"]);
+        auto locality_hint = convert<std::string>(runtime_config["locality_hint"]);
         auto num_repetitions = convert<size_t>(runtime_config["num_repetitions"]);
         auto start_num_prefetches = convert<size_t>(runtime_config["start_num_prefetches"]);
         auto end_num_prefetches = convert<size_t>(runtime_config["end_num_prefetches"]);
@@ -207,6 +212,7 @@ int main(int argc, char **argv)
             num_repetitions,
             0,
             0,
+            locality_hint,
             use_explicit_huge_pages,
             madvise_huge_pages,
         };
@@ -224,6 +230,7 @@ int main(int argc, char **argv)
             {
                 nlohmann::json results;
                 results["config"]["total_memory"] = config.total_memory;
+                results["config"]["locality_hint"] = config.locality_hint;
                 results["config"]["num_threads"] = config.num_threads;
                 results["config"]["num_repetitions"] = config.num_repetitions;
                 results["config"]["num_prefetched"] = num_prefetches;
@@ -232,7 +239,26 @@ int main(int argc, char **argv)
                 results["config"]["measure_until"] = measure_until;
                 config.num_prefetches = num_prefetches;
                 config.measure_until = measure_until;
-                benchmark_wrapper(config, results, data);
+                if (config.locality_hint == "NTA")
+                {
+                    benchmark_wrapper<_MM_HINT_NTA>(config, results, data);
+                }
+                else if (config.locality_hint == "T0")
+                {
+                    benchmark_wrapper<_MM_HINT_T0>(config, results, data);
+                }
+                else if (config.locality_hint == "T1")
+                {
+                    benchmark_wrapper<_MM_HINT_T1>(config, results, data);
+                }
+                else if (config.locality_hint == "T2")
+                {
+                    benchmark_wrapper<_MM_HINT_T2>(config, results, data);
+                }
+                else
+                {
+                    throw std::runtime_error("Unknown locality_hint given: " + config.locality_hint);
+                }
                 all_results.push_back(results);
             }
         }
