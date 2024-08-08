@@ -241,19 +241,23 @@ int main(int argc, char **argv)
                 config.measure_until = measure_until;
                 if (config.locality_hint == "NTA")
                 {
-                    benchmark_wrapper<_MM_HINT_NTA>(config, results, data);
+                    // _MM_HINT_NTA
+                    benchmark_wrapper<0>(config, results, data);
                 }
                 else if (config.locality_hint == "T0")
                 {
-                    benchmark_wrapper<_MM_HINT_T0>(config, results, data);
+                    // _MM_HINT_T0
+                    benchmark_wrapper<3>(config, results, data);
                 }
                 else if (config.locality_hint == "T1")
                 {
-                    benchmark_wrapper<_MM_HINT_T1>(config, results, data);
+                    // _MM_HINT_T1
+                    benchmark_wrapper<2>(config, results, data);
                 }
                 else if (config.locality_hint == "T2")
                 {
-                    benchmark_wrapper<_MM_HINT_T2>(config, results, data);
+                    // _MM_HINT_T2
+                    benchmark_wrapper<1>(config, results, data);
                 }
                 else
                 {
